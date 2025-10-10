@@ -1,0 +1,11 @@
+{
+  "accounts": {
+    "account1": {
+      "username": "user",
+      "password": "pass",
+      "max_comments_per_run": 5,
+      "enabled": true,
+      "headless": false
+    }
+  }
+}

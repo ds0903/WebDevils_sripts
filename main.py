@@ -5,6 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.action_chains import ActionChains
 import json
 import time
 import random
@@ -58,6 +59,7 @@ class ThreadsSeleniumBot:
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
+        options.add_argument('--lang=en-US')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
@@ -102,8 +104,19 @@ class ThreadsSeleniumBot:
     
     def is_logged_in(self):
         try:
-            self.driver.find_element(By.XPATH, "//input[@placeholder='Search']")
-            return True
+            time.sleep(2)
+            try:
+                self.driver.find_element(By.XPATH, "//span[contains(text(), 'New thread')]")
+                return True
+            except:
+                pass
+            
+            try:
+                self.driver.find_element(By.XPATH, "//input[@placeholder='Username, phone or email']")
+                return False
+            except:
+                return True
+                
         except:
             return False
     
@@ -125,26 +138,55 @@ class ThreadsSeleniumBot:
             self.driver.get('https://www.threads.net/login')
             time.sleep(random.uniform(3, 5))
             
-            username_input = WebDriverWait(self.driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, "//input[@name='username']"))
-            )
-            username_input.send_keys(username)
+            logger.info("Шукаємо поле username...")
+            
+            username_selectors = [
+                "//input[@placeholder='Username, phone or email']",
+                "//input[@name='username']",
+                "//input[@type='text']",
+            ]
+            
+            username_input = None
+            for selector in username_selectors:
+                try:
+                    username_input = WebDriverWait(self.driver, 10).until(
+                        EC.presence_of_element_located((By.XPATH, selector))
+                    )
+                    break
+                except:
+                    continue
+            
+            if not username_input:
+                return False
+            
+            username_input.click()
+            time.sleep(random.uniform(0.5, 1))
+            username_input.clear()
+            
+            for char in username:
+                username_input.send_keys(char)
+                time.sleep(random.uniform(0.1, 0.2))
+            
             time.sleep(random.uniform(0.5, 1))
             
-            password_input = self.driver.find_element(By.XPATH, "//input[@name='password']")
-            password_input.send_keys(password)
+            password_input = self.driver.find_element(By.XPATH, "//input[@type='password']")
+            password_input.click()
             time.sleep(random.uniform(0.5, 1))
             
+            for char in password:
+                password_input.send_keys(char)
+                time.sleep(random.uniform(0.1, 0.2))
+            
+            time.sleep(random.uniform(0.5, 1))
             password_input.send_keys(Keys.RETURN)
             
-            time.sleep(5)
+            time.sleep(7)
             
             if self.is_logged_in():
                 logger.info("✓ Вхід виконано успішно")
                 self.save_session(account_id)
                 return True
             else:
-                logger.error("✗ Не вдалося увійти")
                 return False
                 
         except Exception as e:
@@ -155,11 +197,14 @@ class ThreadsSeleniumBot:
         try:
             logger.info(f"Пошук за ключовим словом: {keyword}")
             
-            search_url = f"https://www.threads.net/search?q={keyword}&serp_type=default"
+            search_url = f"https://www.threads.net/search?q={keyword}"
             self.driver.get(search_url)
-            time.sleep(random.uniform(3, 5))
             
-            self.scroll_to_load_posts()
+            time.sleep(6)
+            
+            for i in range(3):
+                self.driver.execute_script("window.scrollBy(0, 800);")
+                time.sleep(2)
             
             posts = self.extract_posts()
             logger.info(f"Знайдено {len(posts)} постів")
@@ -169,50 +214,31 @@ class ThreadsSeleniumBot:
             logger.error(f"Помилка пошуку: {e}")
             return []
     
-    def scroll_to_load_posts(self, scrolls=3):
-        for i in range(scrolls):
-            self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(random.uniform(2, 3))
-    
     def extract_posts(self):
         posts = []
+        
         try:
-            post_elements = self.driver.find_elements(By.XPATH, "//article")
+            links = self.driver.find_elements(By.XPATH, "//a[contains(@href, '/post/')]")
+            logger.info(f"Знайдено {len(links)} посилань")
             
-            for element in post_elements:
-                try:
-                    post_id = element.get_attribute('data-post-id') or str(time.time())
-                    
-                    try:
-                        text_element = element.find_element(By.XPATH, ".//div[contains(@class, 'x1lliihq')]")
-                        text = text_element.text
-                    except:
-                        text = ""
-                    
-                    try:
-                        time_element = element.find_element(By.XPATH, ".//time")
-                        timestamp = time_element.get_attribute('datetime')
-                    except:
-                        timestamp = datetime.now().isoformat()
-                    
-                    post_link = element.find_element(By.XPATH, ".//a[contains(@href, '/post/')]").get_attribute('href')
-                    
+            seen_links = set()
+            for link in links:
+                href = link.get_attribute('href')
+                if href and href not in seen_links and '/media' not in href:
+                    seen_links.add(href)
                     posts.append({
-                        'id': post_id,
-                        'text': text,
-                        'timestamp': timestamp,
-                        'link': post_link,
-                        'element': element
+                        'id': href.split('/')[-1],
+                        'text': '',
+                        'timestamp': datetime.now().isoformat(),
+                        'link': href,
                     })
-                    
-                except Exception as e:
-                    logger.debug(f"Пропуск елемента: {e}")
-                    continue
+            
+            logger.info(f"Створено {len(posts)} унікальних постів")
+            return posts[:15]
             
         except Exception as e:
             logger.error(f"Помилка витягування постів: {e}")
-        
-        return posts
+            return []
     
     def filter_new_posts(self, posts, account_id, keyword):
         key = f"{account_id}_{keyword}"
@@ -230,10 +256,6 @@ class ThreadsSeleniumBot:
                 continue
             seen_ids.add(post_id)
             
-            if not timestamp:
-                new_posts.append(post)
-                continue
-            
             try:
                 post_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
                 post_ts = int(post_time.timestamp())
@@ -241,8 +263,7 @@ class ThreadsSeleniumBot:
                 if post_ts > last_ts:
                     new_posts.append(post)
                     max_ts = max(max_ts, post_ts)
-            except Exception as e:
-                logger.debug(f"Помилка timestamp: {e}")
+            except:
                 new_posts.append(post)
         
         if max_ts > last_ts:
@@ -254,52 +275,191 @@ class ThreadsSeleniumBot:
     def comment_on_post(self, post, comment_text):
         try:
             post_link = post['link']
+            logger.info(f"Відкриваємо пост: {post_link}")
             self.driver.get(post_link)
-            time.sleep(random.uniform(3, 5))
+            time.sleep(5)
+            
+            # Простий підхід: шукаємо текст "Reply to" і клікаємо на нього
+            logger.info("🔍 Шукаємо текст 'Reply'...")
+            
+            # Всі можливі варіанти тексту Reply
+            reply_texts = [
+                "Reply to",
+                "Reply",
+                "Відповісти",
+            ]
+            
+            clicked_reply = False
+            
+            for reply_text in reply_texts:
+                try:
+                    # Шукаємо всі елементи що містять цей текст
+                    elements = self.driver.find_elements(By.XPATH, f"//*[contains(text(), '{reply_text}')]")
+                    
+                    logger.info(f"Знайдено {len(elements)} елементів з текстом '{reply_text}'")
+                    
+                    for elem in elements:
+                        try:
+                            if elem.is_displayed():
+                                logger.info(f"Пробуємо клікнути на: {elem.text[:50]}")
+                                
+                                # Спробуємо звичайний клік
+                                try:
+                                    elem.click()
+                                except:
+                                    # Якщо не вийшло - через JS
+                                    self.driver.execute_script("arguments[0].click();", elem)
+                                
+                                clicked_reply = True
+                                time.sleep(2)
+                                logger.info("✅ Клік на Reply успішний!")
+                                break
+                        except:
+                            continue
+                    
+                    if clicked_reply:
+                        break
+                        
+                except Exception as e:
+                    logger.debug(f"Не знайдено '{reply_text}': {e}")
+                    continue
+            
+            if not clicked_reply:
+                logger.info("⚠️ Не знайдено кнопку Reply, пробуємо знайти поле напряму...")
+            
+            # Тепер шукаємо поле вводу
+            time.sleep(2)
+            
+            logger.info("🔍 Шукаємо поле для введення тексту...")
+            
+            comment_field = None
+            
+            # Всі можливі селектори поля
+            field_selectors = [
+                "//div[@contenteditable='true']",
+                "//textarea[@placeholder]",
+                "//div[@role='textbox']",
+                "//div[@data-placeholder]",
+            ]
+            
+            for selector in field_selectors:
+                try:
+                    fields = self.driver.find_elements(By.XPATH, selector)
+                    logger.info(f"Селектор '{selector}': знайдено {len(fields)} полів")
+                    
+                    for field in fields:
+                        try:
+                            if field.is_displayed() and field.is_enabled():
+                                comment_field = field
+                                logger.info(f"✅ Знайдено видиме поле: {selector}")
+                                break
+                        except:
+                            continue
+                    
+                    if comment_field:
+                        break
+                        
+                except Exception as e:
+                    logger.debug(f"Селектор {selector} не спрацював: {e}")
+            
+            if not comment_field:
+                logger.error("❌ Поле для коментаря не знайдено!")
+                logger.info("💡 Спробуймо вивести весь HTML для діагностики...")
+                
+                # Виведемо весь HTML сторінки для аналізу
+                page_source = self.driver.page_source
+                
+                # Шукаємо contenteditable в коді
+                if 'contenteditable' in page_source.lower():
+                    logger.info("✓ На сторінці є contenteditable елементи")
+                else:
+                    logger.info("✗ contenteditable не знайдено в HTML")
+                
+                if 'reply' in page_source.lower():
+                    logger.info("✓ Слово 'reply' є на сторінці")
+                else:
+                    logger.info("✗ 'reply' не знайдено")
+                
+                return False
+            
+            # Вводимо коментар
+            logger.info("✍️ Вводимо текст коментаря...")
             
             try:
-                reply_button = WebDriverWait(self.driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and contains(@aria-label, 'Reply')]"))
-                )
-                reply_button.click()
-                time.sleep(random.uniform(1, 2))
+                comment_field.click()
             except:
-                logger.warning("Не знайдено кнопку Reply, пробую альтернативний спосіб")
-                try:
-                    comment_area = WebDriverWait(self.driver, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, "//div[@contenteditable='true']"))
-                    )
-                    comment_area.click()
-                    time.sleep(1)
-                except:
-                    logger.error("Не можу знайти поле для коментаря")
-                    return False
+                self.driver.execute_script("arguments[0].click();", comment_field)
             
-            comment_input = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, "//div[@contenteditable='true']"))
-            )
+            time.sleep(1)
             
-            comment_input.click()
-            time.sleep(random.uniform(0.5, 1))
+            # Очищаємо поле
+            try:
+                comment_field.clear()
+            except:
+                comment_field.send_keys(Keys.CONTROL + "a")
+                comment_field.send_keys(Keys.DELETE)
             
+            time.sleep(0.5)
+            
+            # Вводимо текст посимвольно
             for char in comment_text:
-                comment_input.send_keys(char)
+                comment_field.send_keys(char)
                 time.sleep(random.uniform(0.05, 0.15))
             
-            time.sleep(random.uniform(1, 2))
+            logger.info(f"✅ Текст введено: {comment_text[:30]}...")
+            time.sleep(2)
             
-            post_button = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and contains(text(), 'Post')]"))
-            )
-            post_button.click()
+            # Шукаємо кнопку Post
+            logger.info("🔍 Шукаємо кнопку Post...")
             
-            time.sleep(random.uniform(2, 3))
+            post_button = None
             
-            logger.info(f"✓ Коментар залишено: {comment_text[:30]}...")
-            return True
+            post_selectors = [
+                "//div[@role='button' and text()='Post']",
+                "//button[text()='Post']",
+                "//*[text()='Post']",
+            ]
+            
+            for selector in post_selectors:
+                try:
+                    buttons = self.driver.find_elements(By.XPATH, selector)
+                    logger.info(f"Селектор '{selector}': знайдено {len(buttons)} кнопок")
+                    
+                    for btn in buttons:
+                        try:
+                            if btn.is_displayed() and btn.is_enabled():
+                                post_button = btn
+                                logger.info(f"✅ Знайдено кнопку Post: {selector}")
+                                break
+                        except:
+                            continue
+                    
+                    if post_button:
+                        break
+                except:
+                    continue
+            
+            if post_button:
+                logger.info("👆 Клікаємо на Post...")
+                try:
+                    post_button.click()
+                except:
+                    self.driver.execute_script("arguments[0].click();", post_button)
+                
+                time.sleep(3)
+                logger.info("✅ Коментар опубліковано!")
+                return True
+            else:
+                logger.warning("⚠️ Кнопка Post не знайдена, пробуємо Enter...")
+                comment_field.send_keys(Keys.RETURN)
+                time.sleep(3)
+                logger.info("✅ Enter надіслано!")
+                return True
             
         except Exception as e:
-            logger.error(f"Помилка коментування: {e}")
+            logger.error(f"❌ Помилка коментування: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def get_comment_template(self, keyword):
@@ -344,6 +504,7 @@ class ThreadsSeleniumBot:
             
             for keyword, config in self.keywords.items():
                 if not config.get('enabled', True):
+                    logger.info(f"Ключове слово '{keyword}' вимкнено")
                     continue
                 
                 if comments_posted >= max_comments_per_run:
@@ -370,7 +531,7 @@ class ThreadsSeleniumBot:
                         logger.warning(f"Немає шаблону для '{keyword}'")
                         continue
                     
-                    logger.info(f"Коментування поста {post_id}")
+                    logger.info(f"📝 Коментування поста {post_id}")
                     
                     try:
                         success = self.comment_on_post(post, comment_text)
@@ -378,21 +539,27 @@ class ThreadsSeleniumBot:
                         if success:
                             self.log_comment(account_id, post_id, 'selenium_comment', keyword, 'success')
                             comments_posted += 1
+                            logger.info(f"✅ Коментарів залишено: {comments_posted}/{max_comments_per_run}")
                         else:
                             self.log_comment(account_id, post_id, None, keyword, 'failed', 'Comment failed')
+                            logger.warning(f"⚠️ Не вдалося закоментувати, продовжуємо...")
                         
-                        delay = random.uniform(5, 30)
-                        logger.info(f"Затримка {delay:.1f}с перед наступним коментарем")
+                        delay = random.uniform(10, 20)
+                        logger.info(f"⏳ Затримка {delay:.1f}с")
                         time.sleep(delay)
                         
                     except Exception as e:
                         logger.error(f"Помилка: {e}")
                         self.log_comment(account_id, post_id, None, keyword, 'error', str(e))
                 
-                time.sleep(random.uniform(5, 10))
+                time.sleep(5)
+            
+            logger.info(f"✅ Завершено! Всього коментарів: {comments_posted}")
             
         except Exception as e:
             logger.error(f"Критична помилка: {e}")
+            import traceback
+            traceback.print_exc()
         
         finally:
             if self.driver:
