@@ -66,9 +66,18 @@ class Database:
                     id SERIAL PRIMARY KEY,
                     keyword VARCHAR(255) UNIQUE NOT NULL,
                     enabled BOOLEAN DEFAULT TRUE,
+                    should_follow BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Додаємо колонку should_follow якщо її немає (для існуючих БД)
+            try:
+                cursor.execute('''
+                    ALTER TABLE keywords ADD COLUMN IF NOT EXISTS should_follow BOOLEAN DEFAULT FALSE
+                ''')
+            except:
+                pass
             
             # Таблиця шаблонів коментарів
             cursor.execute('''
@@ -256,16 +265,16 @@ class Database:
             cursor.close()
             self.return_connection(conn)
     
-    def create_keyword(self, keyword, enabled=True):
+    def create_keyword(self, keyword, enabled=True, should_follow=False):
         """Створити нове ключове слово"""
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO keywords (keyword, enabled)
-                VALUES (%s, %s)
+                INSERT INTO keywords (keyword, enabled, should_follow)
+                VALUES (%s, %s, %s)
                 RETURNING id
-            ''', (keyword, enabled))
+            ''', (keyword, enabled, should_follow))
             keyword_id = cursor.fetchone()[0]
             conn.commit()
             return keyword_id
@@ -276,7 +285,7 @@ class Database:
             cursor.close()
             self.return_connection(conn)
     
-    def update_keyword(self, keyword_id, keyword=None, enabled=None):
+    def update_keyword(self, keyword_id, keyword=None, enabled=None, should_follow=None):
         """Оновити ключове слово"""
         conn = self.get_connection()
         try:
@@ -291,6 +300,9 @@ class Database:
             if enabled is not None:
                 updates.append('enabled = %s')
                 params.append(enabled)
+            if should_follow is not None:
+                updates.append('should_follow = %s')
+                params.append(should_follow)
             
             if updates:
                 params.append(keyword_id)

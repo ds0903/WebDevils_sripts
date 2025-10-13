@@ -345,11 +345,122 @@ class ThreadsSeleniumBot:
         except:
             return datetime.now(timezone.utc) - timedelta(days=365)
     
-    def comment_on_post(self, post, comment_text):
+    def follow_user(self):
+        """Підписатися на автора поста - переходимо на профіль"""
+        try:
+            logger.info("Підписуємося на автора через профіль...")
+            
+            # СКРОЛИМО ВГОРУ до початку поста
+            self.driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(3)
+            
+            # Знаходимо посилання на профіль автора ПОСТА (не коментарів)
+            try:
+                profile_url = None
+                username = None
+                
+                # Витягуємо username з URL поста
+                # URL виглядає як: https://www.threads.net/@USERNAME/post/POST_ID
+                current_url = self.driver.current_url
+                logger.info(f"Поточний URL: {current_url}")
+                
+                match = re.search(r'/@([^/]+)/', current_url)
+                if match:
+                    username = match.group(1)
+                    profile_url = f"https://www.threads.com/@{username}"
+                    logger.info(f"Знайдено автора: {username}")
+                else:
+                    logger.error("❌ Не вдалося витягнути username з URL")
+                    return False
+                
+                if not profile_url:
+                    logger.error("❌ Не знайдено посилання на профіль автора")
+                    return False
+                
+                logger.info(f"Переходимо на профіль: {profile_url}")
+                
+                # ПЕРЕХОДИМО НА ПРОФІЛЬ АВТОРА
+                self.driver.get(profile_url)
+                time.sleep(4)
+                
+                # Шукаємо кнопку Follow на сторінці профілю
+                logger.info("Шукаємо кнопку Follow на профілі...")
+                
+                follow_found = False
+                
+                # Спочатку шукаємо всі кнопки та div з роллю button
+                try:
+                    all_buttons = self.driver.find_elements(By.XPATH, "//button | //div[@role='button']")
+                    logger.info(f"Знайдено {len(all_buttons)} кнопок на сторінці")
+                    
+                    for btn in all_buttons:
+                        try:
+                            if not btn.is_displayed():
+                                continue
+                            
+                            btn_text = btn.text.strip()
+                            logger.info(f"  Перевіряю кнопку: '{btn_text}'")
+                            
+                            # Шукаємо Follow (не Following, не Followers)
+                            if btn_text == 'Follow' or (btn_text and 'Follow' in btn_text and 'Following' not in btn_text and 'Followers' not in btn_text):
+                                logger.info(f"✅ Знайдено кнопку Follow: '{btn_text}'")
+                                
+                                # Скролимо до кнопки
+                                self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+                                time.sleep(1)
+                                
+                                try:
+                                    btn.click()
+                                    logger.info("✅ Клік по кнопці Follow (click)")
+                                except:
+                                    self.driver.execute_script("arguments[0].click();", btn)
+                                    logger.info("✅ Клік по кнопці Follow (JS)")
+                                
+                                time.sleep(2)
+                                logger.info("✅ Підписка виконана")
+                                follow_found = True
+                                break
+                        except Exception as e:
+                            continue
+                except Exception as e:
+                    logger.error(f"Помилка пошуку кнопок: {e}")
+                
+                if not follow_found:
+                    logger.warning("⚠️ Кнопка Follow не знайдена на профілі (можливо вже підписані)")
+                
+                # ПОВЕРТАЄМОСЯ НАЗАД НА ПОСТ
+                logger.info("Повертаємося назад на пост...")
+                self.driver.back()
+                time.sleep(4)
+                
+                return follow_found
+                
+            except Exception as e:
+                logger.error(f"❌ Помилка при переході на профіль: {e}")
+                # Спробуємо повернутися назад
+                try:
+                    self.driver.back()
+                    time.sleep(3)
+                except:
+                    pass
+                return False
+            
+        except Exception as e:
+            logger.error(f"❌ Помилка підписки: {e}")
+            return False
+    
+    def comment_on_post(self, post, comment_text, should_follow=False):
         try:
             logger.info(f"Коментуємо пост ({post['time_text']})")
             self.driver.get(post['link'])
             time.sleep(5)
+            
+            # Підписка ПЕРЕД коментуванням (якщо потрібно)
+            if should_follow:
+                self.follow_user()
+                # Вже на сторінці поста після driver.back()
+                logger.info("Продовжуємо коментування...")
+                time.sleep(2)
             
             reply_texts = ["Reply to", "Reply", "Відповісти"]
             clicked = False
@@ -493,6 +604,7 @@ class ThreadsSeleniumBot:
                     break
                 
                 keyword = keyword_data['keyword']
+                should_follow = keyword_data.get('should_follow', False)
                 remaining_comments = max_comments - comments_posted
                 
                 # Шукаємо стільки постів, скільки ще потрібно прокоментувати
@@ -517,7 +629,8 @@ class ThreadsSeleniumBot:
                     
                     comment_text = random.choice(templates)['template_text']
                     
-                    success = self.comment_on_post(post, comment_text)
+                    # Передаємо should_follow в функцію коментування
+                    success = self.comment_on_post(post, comment_text, should_follow)
                     
                     status = 'success' if success else 'failed'
                     self.db.add_comment_history(
@@ -531,7 +644,10 @@ class ThreadsSeleniumBot:
                     
                     if success:
                         comments_posted += 1
-                        logger.info(f"📊 Коментарів: {comments_posted}/{max_comments}")
+                        if should_follow:
+                            logger.info(f"📊 Коментарів: {comments_posted}/{max_comments} (+ підписка)")
+                        else:
+                            logger.info(f"📊 Коментарів: {comments_posted}/{max_comments}")
                     
                     delay = self.get_delay('delay_between_comments_min', 'delay_between_comments_max')
                     logger.info(f"⏳ Затримка {delay:.1f}с")

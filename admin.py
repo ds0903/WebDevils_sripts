@@ -210,8 +210,9 @@ class AdminPanel:
                 print("\n📋 Список ключових слів:\n")
                 for kw in keywords:
                     status = "🟢" if kw['enabled'] else "🔴"
+                    follow = "👤" if kw.get('should_follow', False) else ""
                     templates = self.db.get_templates_for_keyword(kw['id'])
-                    print(f"{kw['id']}. {status} \"{kw['keyword']}\" ({len(templates)} шаблонів)")
+                    print(f"{kw['id']}. {status} {follow} \"{kw['keyword']}\" ({len(templates)} шаблонів)")
             else:
                 print("\n⚠️  Ключових слів ще немає")
             
@@ -219,7 +220,8 @@ class AdminPanel:
             print("1. ➕ Додати ключове слово")
             print("2. 📝 Управління шаблонами")
             print("3. 🔄 Увімкнути/Вимкнути")
-            print("4. 🗑️  Видалити ключове слово")
+            print("4. 👤 Увімкнути/Вимкнути підписку")
+            print("5. 🗑️  Видалити ключове слово")
             print("0. Назад")
             
             choice = self.get_input("Виберіть опцію")
@@ -231,6 +233,8 @@ class AdminPanel:
             elif choice == '3':
                 self.toggle_keyword()
             elif choice == '4':
+                self.toggle_follow()
+            elif choice == '5':
                 self.delete_keyword()
             elif choice == '0':
                 break
@@ -244,9 +248,12 @@ class AdminPanel:
             input("Натисніть Enter...")
             return
         
+        should_follow = self.get_input("Підписуватись на авторів? (y/n)").lower() == 'y'
+        
         try:
-            keyword_id = self.db.create_keyword(keyword, True)
-            print(f"\n✅ Ключове слово створено! ID: {keyword_id}")
+            keyword_id = self.db.create_keyword(keyword, True, should_follow)
+            follow_text = " (з підпискою)" if should_follow else ""
+            print(f"\n✅ Ключове слово створено{follow_text}! ID: {keyword_id}")
             print("\nДодайте шаблони коментарів для цього слова:")
             
             while True:
@@ -259,6 +266,25 @@ class AdminPanel:
             
         except Exception as e:
             print(f"\n❌ Помилка: {e}")
+        
+        input("Натисніть Enter...")
+    
+    def toggle_follow(self):
+        keyword_id = self.get_input("ID ключового слова")
+        if not keyword_id.isdigit():
+            return
+        
+        keyword = self.db.get_keyword(int(keyword_id))
+        if not keyword:
+            print("❌ Ключове слово не знайдено!")
+            input("Натисніть Enter...")
+            return
+        
+        new_status = not keyword.get('should_follow', False)
+        self.db.update_keyword(int(keyword_id), should_follow=new_status)
+        
+        status_text = "увімкнено" if new_status else "вимкнено"
+        print(f"\n✅ Підписку для \"{keyword['keyword']}\" {status_text}!")
         
         input("Натисніть Enter...")
     
@@ -275,7 +301,8 @@ class AdminPanel:
         
         while True:
             self.clear_screen()
-            self.print_header(f"📝 ШАБЛОНИ ДЛЯ \"{keyword['keyword']}\"")
+            follow_status = "з підпискою 👤" if keyword.get('should_follow', False) else "без підписки"
+            self.print_header(f"📝 ШАБЛОНИ ДЛЯ \"{keyword['keyword']}\" ({follow_status})")
             
             templates = self.db.get_templates_for_keyword(int(keyword_id))
             
@@ -481,6 +508,10 @@ class AdminPanel:
         
         print(f"\n✅ Активних акаунтів: {len(accounts)}")
         print(f"✅ Активних ключових слів: {len(keywords)}")
+        
+        follow_keywords = [k for k in keywords if k.get('should_follow', False)]
+        if follow_keywords:
+            print(f"👤 З підпискою: {len(follow_keywords)} ({', '.join([k['keyword'] for k in follow_keywords])})")
         
         print("\n1. 🔄 Запустити один раз")
         print("2. 🔁 Запустити в циклі (кожні X хвилин)")
