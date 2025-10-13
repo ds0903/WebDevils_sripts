@@ -391,7 +391,6 @@ class ThreadsSeleniumBot:
                 # Спочатку шукаємо всі кнопки та div з роллю button
                 try:
                     all_buttons = self.driver.find_elements(By.XPATH, "//button | //div[@role='button']")
-                    logger.info(f"Знайдено {len(all_buttons)} кнопок на сторінці")
                     
                     for btn in all_buttons:
                         try:
@@ -399,11 +398,10 @@ class ThreadsSeleniumBot:
                                 continue
                             
                             btn_text = btn.text.strip()
-                            logger.info(f"  Перевіряю кнопку: '{btn_text}'")
                             
                             # Шукаємо Follow (не Following, не Followers)
                             if btn_text == 'Follow' or (btn_text and 'Follow' in btn_text and 'Following' not in btn_text and 'Followers' not in btn_text):
-                                logger.info(f"✅ Знайдено кнопку Follow: '{btn_text}'")
+                                logger.info(f"✅ Знайдено кнопку Follow")
                                 
                                 # Скролимо до кнопки
                                 self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
@@ -411,10 +409,8 @@ class ThreadsSeleniumBot:
                                 
                                 try:
                                     btn.click()
-                                    logger.info("✅ Клік по кнопці Follow (click)")
                                 except:
                                     self.driver.execute_script("arguments[0].click();", btn)
-                                    logger.info("✅ Клік по кнопці Follow (JS)")
                                 
                                 time.sleep(2)
                                 logger.info("✅ Підписка виконана")
