@@ -265,6 +265,10 @@ class Database:
             cursor.close()
             self.return_connection(conn)
     
+    def add_keyword(self, keyword, enabled=True, should_follow=False):
+        """Створити нове ключове слово (alias для create_keyword)"""
+        return self.create_keyword(keyword, enabled, should_follow)
+    
     def create_keyword(self, keyword, enabled=True, should_follow=False):
         """Створити нове ключове слово"""
         conn = self.get_connection()
@@ -284,6 +288,26 @@ class Database:
         finally:
             cursor.close()
             self.return_connection(conn)
+    
+    def toggle_keyword(self, keyword_id):
+        """Переключити стан enabled для ключового слова"""
+        keyword = self.get_keyword(keyword_id)
+        if keyword:
+            self.update_keyword(keyword_id, enabled=not keyword['enabled'])
+    
+    def toggle_keyword_follow(self, keyword_id):
+        """Переключити стан should_follow для ключового слова"""
+        keyword = self.get_keyword(keyword_id)
+        if keyword:
+            self.update_keyword(keyword_id, should_follow=not keyword.get('should_follow', False))
+    
+    def get_keyword_by_id(self, keyword_id):
+        """Alias для get_keyword"""
+        return self.get_keyword(keyword_id)
+    
+    def add_template(self, keyword_id, template_text):
+        """Alias для create_template"""
+        return self.create_template(keyword_id, template_text)
     
     def update_keyword(self, keyword_id, keyword=None, enabled=None, should_follow=None):
         """Оновити ключове слово"""
