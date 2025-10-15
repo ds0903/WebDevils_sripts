@@ -21,6 +21,7 @@ class AccountStates(StatesGroup):
     add_headless = State()
     
     edit_select = State()
+    edit_menu = State()
     edit_password = State()
     edit_max_comments = State()
     edit_headless = State()
@@ -133,6 +134,164 @@ async def process_add_headless(message: Message, state: FSMContext):
     
     await state.clear()
 
+# ============= РЕДАГУВАННЯ АКАУНТУ =============
+
+@router.callback_query(F.data == "acc_edit")
+async def edit_account_start(callback: CallbackQuery, state: FSMContext):
+    if not is_authorized(callback.from_user.id):
+        await callback.answer("❌ Доступ заборонено!", show_alert=True)
+        return
+    
+    accounts = db.get_all_accounts()
+    if not accounts:
+        await callback.answer("⚠️ Немає акаунтів", show_alert=True)
+        return
+    
+    text = "✏️ <b>РЕДАГУВАННЯ АКАУНТУ</b>\n\nВведіть ID акаунту:\n\n"
+    for acc in accounts:
+        status = "🟢" if acc['enabled'] else "🔴"
+        headless = "🔇" if acc['headless'] else "👁️"
+        text += f"{acc['id']}. {status} {headless} @{acc['username']}\n"
+    
+    await callback.message.answer(text, parse_mode='HTML', reply_markup=cancel_markup())
+    await state.set_state(AccountStates.edit_select)
+    await callback.answer()
+
+@router.message(AccountStates.edit_select)
+async def process_edit_select(message: Message, state: FSMContext):
+    if message.text == "❌ Скасувати":
+        await state.clear()
+        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
+        return
+    
+    if not message.text.isdigit():
+        await message.answer("❌ Введіть числове ID")
+        return
+    
+    account = db.get_account(int(message.text))
+    if not account:
+        await message.answer("❌ Акаунт не знайдено!", reply_markup=ReplyKeyboardRemove())
+        await state.clear()
+        return
+    
+    await state.update_data(account_id=int(message.text))
+    
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔑 Змінити пароль", callback_data="edit_password")],
+        [InlineKeyboardButton(text="🔢 Макс. коментарів", callback_data="edit_max_comments")],
+        [InlineKeyboardButton(text=f"{'🔇 Headless' if account['headless'] else '👁️ Не Headless'}", callback_data="edit_headless")],
+        [InlineKeyboardButton(text="❌ Скасувати", callback_data="menu_accounts")]
+    ])
+    
+    headless_status = "🔇 Headless (без вікна)" if account['headless'] else "👁️ Не Headless (з вікном)"
+    
+    await message.answer(
+        f"✏️ <b>Редагування акаунту @{account['username']}</b>\n\n"
+        f"Поточні налаштування:\n"
+        f"Макс. коментарів: {account['max_comments_per_run']}\n"
+        f"Режим: {headless_status}\n\n"
+        f"Що хочете змінити?",
+        parse_mode='HTML',
+        reply_markup=keyboard
+    )
+    await state.set_state(AccountStates.edit_menu)
+
+@router.callback_query(F.data == "edit_password", AccountStates.edit_menu)
+async def edit_password_start(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("🔑 Введіть новий пароль:", reply_markup=cancel_markup())
+    await state.set_state(AccountStates.edit_password)
+    await callback.answer()
+
+@router.message(AccountStates.edit_password)
+async def process_edit_password(message: Message, state: FSMContext):
+    if message.text == "❌ Скасувати":
+        await state.clear()
+        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
+        return
+    
+    data = await state.get_data()
+    account_id = data['account_id']
+    
+    try:
+        db.update_account(account_id, password=message.text)
+        await message.answer("✅ Пароль змінено!", reply_markup=ReplyKeyboardRemove())
+        logger.info(f"Змінено пароль для акаунту ID {account_id}")
+    except Exception as e:
+        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        logger.error(f"Помилка зміни пароля: {e}")
+    
+    await state.clear()
+
+@router.callback_query(F.data == "edit_max_comments", AccountStates.edit_menu)
+async def edit_max_comments_start(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer("🔢 Введіть нову кількість макс. коментарів:", reply_markup=cancel_markup())
+    await state.set_state(AccountStates.edit_max_comments)
+    await callback.answer()
+
+@router.message(AccountStates.edit_max_comments)
+async def process_edit_max_comments(message: Message, state: FSMContext):
+    if message.text == "❌ Скасувати":
+        await state.clear()
+        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
+        return
+    
+    if not message.text.isdigit():
+        await message.answer("❌ Введіть числове значення")
+        return
+    
+    data = await state.get_data()
+    account_id = data['account_id']
+    
+    try:
+        db.update_account(account_id, max_comments=int(message.text))
+        await message.answer(f"✅ Макс. коментарів змінено на {message.text}!", reply_markup=ReplyKeyboardRemove())
+        logger.info(f"Змінено макс. коментарів для акаунту ID {account_id}")
+    except Exception as e:
+        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        logger.error(f"Помилка зміни макс. коментарів: {e}")
+    
+    await state.clear()
+
+@router.callback_query(F.data == "edit_headless", AccountStates.edit_menu)
+async def edit_headless_toggle(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    account_id = data['account_id']
+    
+    try:
+        account = db.get_account(account_id)
+        new_headless = not account['headless']
+        db.update_account(account_id, headless=new_headless)
+        
+        status = "🔇 Headless (без вікна)" if new_headless else "👁️ Не Headless (з вікном)"
+        await callback.answer(f"✅ Змінено на {status}", show_alert=True)
+        
+        # Оновлюємо клавіатуру
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔑 Змінити пароль", callback_data="edit_password")],
+            [InlineKeyboardButton(text="🔢 Макс. коментарів", callback_data="edit_max_comments")],
+            [InlineKeyboardButton(text=f"{'🔇 Headless' if new_headless else '👁️ Не Headless'}", callback_data="edit_headless")],
+            [InlineKeyboardButton(text="❌ Скасувати", callback_data="menu_accounts")]
+        ])
+        
+        await callback.message.edit_text(
+            f"✏️ <b>Редагування акаунту @{account['username']}</b>\n\n"
+            f"Поточні налаштування:\n"
+            f"Макс. коментарів: {account['max_comments_per_run']}\n"
+            f"Режим: {status}\n\n"
+            f"Що хочете змінити?",
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        
+        logger.info(f"Змінено headless для акаунту ID {account_id} на {new_headless}")
+    except Exception as e:
+        await callback.answer(f"❌ Помилка: {e}", show_alert=True)
+        logger.error(f"Помилка зміни headless: {e}")
+
+# ============= УВІМК/ВИМК АКАУНТ =============
+
 @router.callback_query(F.data == "acc_toggle")
 async def toggle_account_start(callback: CallbackQuery, state: FSMContext):
     if not is_authorized(callback.from_user.id):
@@ -180,6 +339,8 @@ async def process_toggle_account(message: Message, state: FSMContext):
     )
     logger.info(f"Акаунт @{account['username']} {status_text}")
     await state.clear()
+
+# ============= ВИДАЛЕННЯ АКАУНТУ =============
 
 @router.callback_query(F.data == "acc_delete")
 async def delete_account_start(callback: CallbackQuery, state: FSMContext):

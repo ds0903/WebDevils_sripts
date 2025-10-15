@@ -128,6 +128,7 @@ class Database:
                 ('delay_between_posts_max', '15', 'Максимальна затримка між постами (секунди)'),
                 ('run_interval_minutes', '10', 'Інтервал запуску бота (хвилини)'),
                 ('max_post_age_hours', '24', 'Макс. вік поста для коментування (годин, 0=без обмежень)'),
+                ('global_headless_mode', 'false', 'Глобальний headless режим (без вікна браузера)'),
             ]
             
             for key, value, desc in default_settings:

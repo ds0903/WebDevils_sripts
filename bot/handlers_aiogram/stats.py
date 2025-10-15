@@ -61,7 +61,11 @@ async def view_history(callback: CallbackQuery):
             'error': '❌'
         }.get(item['status'], '❓')
         
-        date = datetime.fromisoformat(item['created_at']).strftime('%d.%m %H:%M')
+        # Виправлення: created_at вже datetime об'єкт, не потрібно fromisoformat
+        created_at = item['created_at']
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+        date = created_at.strftime('%d.%m %H:%M')
         
         text += f"{status_icon} {date} | @{item['username']}\n"
         text += f"   🔑 \"{item['keyword']}\"\n"
