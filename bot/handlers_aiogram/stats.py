@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from database import Database
 from bot.utils import is_authorized, logger
-from bot.keyboards_aiogram import stats_menu_markup, back_button_markup
+from bot.keyboards_aiogram import stats_menu_markup
 
 router = Router()
 db = Database()
@@ -138,7 +138,7 @@ async def view_history(callback: CallbackQuery):
         filename = f"data/history_{limit}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         wb.save(filename)
         
-        # Відправляємо файл
+        # Відправляємо файл БЕЗ кнопки "Назад"
         file = FSInputFile(filename)
         await callback.message.answer_document(
             file,
@@ -147,8 +147,7 @@ async def view_history(callback: CallbackQuery):
                    f"✅ Успішних: {sum(1 for x in history if x['status'] == 'success')}\n"
                    f"⚠️ Невдалих: {sum(1 for x in history if x['status'] == 'failed')}\n"
                    f"❌ Помилок: {sum(1 for x in history if x['status'] == 'error')}",
-            parse_mode='HTML',
-            reply_markup=back_button_markup()
+            parse_mode='HTML'
         )
         
         # Видаляємо файл після відправки

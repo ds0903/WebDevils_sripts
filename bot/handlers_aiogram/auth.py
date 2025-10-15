@@ -38,11 +38,6 @@ PIN-код можна отримати у адміністратора.
 
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, state: FSMContext):
-    # Перевіряємо чи вже авторизований
-    if is_authorized(message.from_user.id):
-        await show_admin_panel(message)
-        return
-    
     # Витягуємо PIN з команди
     args = message.text.split(maxsplit=1)
     
@@ -52,7 +47,6 @@ async def cmd_admin(message: Message, state: FSMContext):
             "Формат: <code>/admin PIN_КОД</code>",
             parse_mode='HTML'
         )
-        await state.set_state(AuthStates.waiting_for_pin)
         return
     
     pin = args[1].strip()
@@ -67,27 +61,6 @@ async def cmd_admin(message: Message, state: FSMContext):
         logger.info(f"✅ Успішна авторизація користувача {message.from_user.id}")
     else:
         await message.answer("❌ Невірний PIN-код!")
-        logger.warning(f"❌ Невдала спроба входу користувача {message.from_user.id}")
-
-@router.message(AuthStates.waiting_for_pin)
-async def process_pin(message: Message, state: FSMContext):
-    pin = message.text.strip()
-    
-    logger.info(f"Обробка PIN від користувача {message.from_user.id}: '{pin}' (очікуваний: '{ADMIN_PIN}')")
-    
-    if pin == ADMIN_PIN:
-        authorize_user(message.from_user.id, message.from_user.username)
-        await message.answer("✅ Авторизація успішна!")
-        await state.clear()
-        await show_admin_panel(message)
-        logger.info(f"✅ Успішна авторизація користувача {message.from_user.id}")
-    else:
-        await message.answer(
-            "❌ Невірний PIN-код!\n\n"
-            "Спробуйте знову: <code>/admin PIN_КОД</code>",
-            parse_mode='HTML'
-        )
-        await state.clear()
         logger.warning(f"❌ Невдала спроба входу користувача {message.from_user.id}")
 
 async def show_admin_panel(message: Message):
