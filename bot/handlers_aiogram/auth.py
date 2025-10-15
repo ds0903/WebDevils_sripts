@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from bot.utils import is_authorized, save_authorized_user, logger
+from bot.utils import is_authorized, authorize_user, logger
 from bot.keyboards_aiogram import main_menu_markup
 from bot.config import ADMIN_PIN
 
@@ -55,32 +55,40 @@ async def cmd_admin(message: Message, state: FSMContext):
         await state.set_state(AuthStates.waiting_for_pin)
         return
     
-    pin = args[1]
+    pin = args[1].strip()
+    
+    logger.info(f"Спроба входу користувача {message.from_user.id} з PIN: '{pin}' (очікуваний: '{ADMIN_PIN}')")
     
     if pin == ADMIN_PIN:
-        save_authorized_user(message.from_user.id)
+        authorize_user(message.from_user.id, message.from_user.username)
         await message.answer("✅ Авторизація успішна!")
         await state.clear()
         await show_admin_panel(message)
+        logger.info(f"✅ Успішна авторизація користувача {message.from_user.id}")
     else:
-        await message.answer("❌ Невірний PIN!")
+        await message.answer("❌ Невірний PIN-код!")
+        logger.warning(f"❌ Невдала спроба входу користувача {message.from_user.id}")
 
 @router.message(AuthStates.waiting_for_pin)
 async def process_pin(message: Message, state: FSMContext):
     pin = message.text.strip()
     
+    logger.info(f"Обробка PIN від користувача {message.from_user.id}: '{pin}' (очікуваний: '{ADMIN_PIN}')")
+    
     if pin == ADMIN_PIN:
-        save_authorized_user(message.from_user.id)
+        authorize_user(message.from_user.id, message.from_user.username)
         await message.answer("✅ Авторизація успішна!")
         await state.clear()
         await show_admin_panel(message)
+        logger.info(f"✅ Успішна авторизація користувача {message.from_user.id}")
     else:
         await message.answer(
-            "❌ Невірний PIN!\n\n"
+            "❌ Невірний PIN-код!\n\n"
             "Спробуйте знову: <code>/admin PIN_КОД</code>",
             parse_mode='HTML'
         )
         await state.clear()
+        logger.warning(f"❌ Невдала спроба входу користувача {message.from_user.id}")
 
 async def show_admin_panel(message: Message):
     text = """

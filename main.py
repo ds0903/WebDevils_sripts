@@ -16,9 +16,18 @@ from datetime import datetime, timedelta, timezone
 
 from database import Database
 
+# Створюємо папку для логів
+logs_dir = Path('logs')
+logs_dir.mkdir(exist_ok=True)
+
+# Налаштування логування - пишемо в файл і консоль
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/bot_script.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -43,6 +52,11 @@ class ThreadsSeleniumBot:
         return random.uniform(min_val, max_val)
     
     def init_driver(self, headless=False):
+        # Перевіряємо глобальне налаштування headless
+        global_headless = self.db.get_setting('global_headless_mode') or 'false'
+        if global_headless == 'true':
+            headless = True
+            
         options = Options()
         if headless:
             options.add_argument('--headless')

@@ -1,10 +1,11 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove, FSInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from pathlib import Path
+import os
 
 import sys
-import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database import Database
@@ -26,6 +27,7 @@ def settings_keyboard():
         [InlineKeyboardButton(text="📅 Макс. вік поста", callback_data="setting_max_age")],
         [InlineKeyboardButton(text="🔄 Інтервал запуску", callback_data="setting_run_interval")],
         [InlineKeyboardButton(text="🔇 Headless режим", callback_data="setting_headless")],
+        [InlineKeyboardButton(text="📝 Завантажити логи", callback_data="setting_logs")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 
@@ -77,6 +79,82 @@ async def show_settings_menu(callback: CallbackQuery):
     await callback.message.edit_text(text, reply_markup=settings_keyboard(), parse_mode='HTML')
     await callback.answer()
     logger.info("Показано меню налаштувань")
+
+# ============= ЗАВАНТАЖЕННЯ ЛОГІВ =============
+
+@router.callback_query(F.data == "setting_logs")
+async def send_logs(callback: CallbackQuery):
+    if not is_authorized(callback.from_user.id):
+        await callback.answer("❌ Доступ заборонено!", show_alert=True)
+        return
+    
+    try:
+        # Отримуємо абсолютний шлях до кореневої папки проекту
+        current_dir = Path(__file__).resolve().parent
+        project_root = current_dir.parent.parent  # піднімаємося на 2 рівні вгору
+        log_file = project_root / 'logs' / 'bot_script.log'
+        
+        logger.info(f"Шукаємо файл логів: {log_file}")
+        
+        if not log_file.exists():
+            await callback.answer(f"⚠️ Файл логів не знайдено за шляхом:\n{log_file}", show_alert=True)
+            logger.error(f"Файл логів не знайдено: {log_file}")
+            return
+        
+        # Перевіряємо розмір файлу
+        file_size = log_file.stat().st_size
+        
+        if file_size == 0:
+            await callback.answer("⚠️ Файл логів порожній", show_alert=True)
+            return
+        
+        logger.info(f"Розмір файлу логів: {file_size} байт")
+        
+        # Якщо файл дуже великий (>10MB), беремо тільки останні рядки
+        if file_size > 10 * 1024 * 1024:
+            await callback.answer("📝 Файл занадто великий, відправляю останні 5000 рядків...", show_alert=False)
+            
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                last_lines = lines[-5000:]
+            
+            # Створюємо тимчасовий файл з останніми рядками
+            temp_log = project_root / 'data' / 'temp_log.txt'
+            temp_log.parent.mkdir(exist_ok=True)
+            
+            with open(temp_log, 'w', encoding='utf-8') as f:
+                f.writelines(last_lines)
+            
+            file = FSInputFile(str(temp_log), filename='bot_logs_last_5000.txt')
+            await callback.message.answer_document(
+                file,
+                caption="📝 <b>Логи бота (останні 5000 рядків)</b>\n\n"
+                       f"Повний розмір файлу: {file_size / 1024 / 1024:.2f} MB",
+                parse_mode='HTML'
+            )
+            
+            # Видаляємо тимчасовий файл
+            try:
+                os.remove(temp_log)
+            except:
+                pass
+        else:
+            await callback.answer("📝 Відправляю логи...", show_alert=False)
+            
+            file = FSInputFile(str(log_file), filename='bot_script.log')
+            await callback.message.answer_document(
+                file,
+                caption="📝 <b>Логи основного скрипта</b>\n\n"
+                       f"Розмір файлу: {file_size / 1024:.2f} KB\n"
+                       f"Шлях: <code>{log_file}</code>",
+                parse_mode='HTML'
+            )
+        
+        logger.info("Відправлено файл логів")
+        
+    except Exception as e:
+        await callback.answer(f"❌ Помилка: {e}", show_alert=True)
+        logger.error(f"Помилка відправки логів: {e}", exc_info=True)
 
 # ============= РЕДАГУВАННЯ ЗАТРИМОК МІЖ КОМЕНТАРЯМИ =============
 
