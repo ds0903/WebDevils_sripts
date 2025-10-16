@@ -55,32 +55,60 @@ async def add_keyword_start(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Доступ заборонено!", show_alert=True)
         return
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         "✍️ Введіть ключове слово для пошуку постів:\n\nНаприклад: <i>крипто, NFT, блокчейн</i>",
         parse_mode='HTML',
-        reply_markup=cancel_markup()
+        reply_markup=cancel_markup("menu_keywords")
     )
+    await state.update_data(last_bot_message_id=callback.message.message_id)
     await state.set_state(KeywordStates.add_keyword)
     await callback.answer()
 
 @router.message(KeywordStates.add_keyword)
 async def process_add_keyword(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
-        return
+    data = await state.get_data()
+    
+    # Видаляємо повідомлення користувача
+    try:
+        await message.delete()
+    except:
+        pass
     
     keyword = message.text.strip()
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад до меню", callback_data="menu_keywords")]
+    ])
+    
     if not keyword:
-        await message.answer("❌ Ключове слово не може бути порожнім!")
+        await message.bot.edit_message_text(
+            "❌ <b>Помилка!</b>\n\nКлючове слово не може бути порожнім!",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        await state.clear()
         return
     
     try:
         db.add_keyword(keyword)
-        await message.answer(f"✅ Ключове слово \"{keyword}\" додано!", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"✅ <b>Ключове слово додано!</b>\n\nСлово: \"{keyword}\"",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.info(f"Додано ключове слово: {keyword}")
     except Exception as e:
-        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"❌ <b>Помилка:</b> {e}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.error(f"Помилка додавання ключового слова: {e}")
     
     await state.clear()
@@ -99,26 +127,52 @@ async def toggle_keyword_start(callback: CallbackQuery, state: FSMContext):
     text = "🔢 Введіть ID ключового слова для зміни статусу:\n\n"
     text += "\n".join([f"{kw['id']}. {'🟢' if kw['enabled'] else '🔴'} {kw['keyword']}" for kw in keywords])
     
-    await callback.message.answer(text, reply_markup=cancel_markup())
+    await callback.message.edit_text(text, reply_markup=cancel_markup("menu_keywords"))
+    await state.update_data(last_bot_message_id=callback.message.message_id)
     await state.set_state(KeywordStates.toggle_keyword)
     await callback.answer()
 
 @router.message(KeywordStates.toggle_keyword)
 async def process_toggle_keyword(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
-        return
+    data = await state.get_data()
+    
+    # Видаляємо повідомлення користувача
+    try:
+        await message.delete()
+    except:
+        pass
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад до меню", callback_data="menu_keywords")]
+    ])
     
     try:
         keyword_id = int(message.text)
         db.toggle_keyword(keyword_id)
-        await message.answer(f"✅ Статус ключового слова #{keyword_id} змінено!", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"✅ <b>Статус ключового слова змінено!</b>\n\nID: {keyword_id}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.info(f"Змінено статус ключового слова ID: {keyword_id}")
     except ValueError:
-        await message.answer("❌ Введіть коректний ID!")
+        await message.bot.edit_message_text(
+            "❌ <b>Помилка!</b>\n\nВведіть коректний ID!",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
     except Exception as e:
-        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"❌ <b>Помилка:</b> {e}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.error(f"Помилка зміни статусу: {e}")
     
     await state.clear()
@@ -139,26 +193,52 @@ async def follow_keyword_start(callback: CallbackQuery, state: FSMContext):
         follow_status = " 👤" if kw.get('should_follow', False) else ""
         text += f"{kw['id']}. {kw['keyword']}{follow_status}\n"
     
-    await callback.message.answer(text, reply_markup=cancel_markup())
+    await callback.message.edit_text(text, reply_markup=cancel_markup("menu_keywords"))
+    await state.update_data(last_bot_message_id=callback.message.message_id)
     await state.set_state(KeywordStates.follow_keyword)
     await callback.answer()
 
 @router.message(KeywordStates.follow_keyword)
 async def process_follow_keyword(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
-        return
+    data = await state.get_data()
+    
+    # Видаляємо повідомлення користувача
+    try:
+        await message.delete()
+    except:
+        pass
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад до меню", callback_data="menu_keywords")]
+    ])
     
     try:
         keyword_id = int(message.text)
         db.toggle_keyword_follow(keyword_id)
-        await message.answer(f"✅ Підписку для ключового слова #{keyword_id} змінено!", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"✅ <b>Підписку змінено!</b>\n\nID: {keyword_id}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.info(f"Змінено підписку для ключового слова ID: {keyword_id}")
     except ValueError:
-        await message.answer("❌ Введіть коректний ID!")
+        await message.bot.edit_message_text(
+            "❌ <b>Помилка!</b>\n\nВведіть коректний ID!",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
     except Exception as e:
-        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"❌ <b>Помилка:</b> {e}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.error(f"Помилка зміни підписки: {e}")
     
     await state.clear()
@@ -177,26 +257,52 @@ async def delete_keyword_start(callback: CallbackQuery, state: FSMContext):
     text = "🗑️ Введіть ID ключового слова для видалення:\n\n"
     text += "\n".join([f"{kw['id']}. {kw['keyword']}" for kw in keywords])
     
-    await callback.message.answer(text, reply_markup=cancel_markup())
+    await callback.message.edit_text(text, reply_markup=cancel_markup("menu_keywords"))
+    await state.update_data(last_bot_message_id=callback.message.message_id)
     await state.set_state(KeywordStates.delete_keyword)
     await callback.answer()
 
 @router.message(KeywordStates.delete_keyword)
 async def process_delete_keyword(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
-        return
+    data = await state.get_data()
+    
+    # Видаляємо повідомлення користувача
+    try:
+        await message.delete()
+    except:
+        pass
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад до меню", callback_data="menu_keywords")]
+    ])
     
     try:
         keyword_id = int(message.text)
         db.delete_keyword(keyword_id)
-        await message.answer(f"✅ Ключове слово #{keyword_id} видалено!", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"✅ <b>Ключове слово видалено!</b>\n\nID: {keyword_id}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.info(f"Видалено ключове слово ID: {keyword_id}")
     except ValueError:
-        await message.answer("❌ Введіть коректний ID!")
+        await message.bot.edit_message_text(
+            "❌ <b>Помилка!</b>\n\nВведіть коректний ID!",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
     except Exception as e:
-        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"❌ <b>Помилка:</b> {e}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.error(f"Помилка видалення: {e}")
     
     await state.clear()
@@ -276,29 +382,60 @@ async def add_template_start(callback: CallbackQuery, state: FSMContext):
     
     keyword_id = int(callback.data.split("_")[2])
     await state.update_data(keyword_id=keyword_id)
-    await callback.message.answer("✍️ Введіть текст шаблону коментаря:", reply_markup=cancel_markup())
+    
+    await callback.message.edit_text(
+        "✍️ Введіть текст шаблону коментаря:",
+        reply_markup=cancel_markup(f"template_select_{keyword_id}")
+    )
+    await state.update_data(last_bot_message_id=callback.message.message_id)
     await state.set_state(KeywordStates.add_template)
     await callback.answer()
 
 @router.message(KeywordStates.add_template)
 async def process_add_template(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
-        return
+    data = await state.get_data()
+    
+    # Видаляємо повідомлення користувача
+    try:
+        await message.delete()
+    except:
+        pass
     
     template_text = message.text.strip()
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад", callback_data=f"template_select_{data['keyword_id']}")]
+    ])
+    
     if not template_text:
-        await message.answer("❌ Шаблон не може бути порожнім!")
+        await message.bot.edit_message_text(
+            "❌ <b>Помилка!</b>\n\nШаблон не може бути порожнім!",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
+        await state.clear()
         return
     
-    data = await state.get_data()
     try:
         db.add_template(data['keyword_id'], template_text)
-        await message.answer("✅ Шаблон додано!", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"✅ <b>Шаблон додано!</b>\n\nТекст: {template_text[:100]}{'...' if len(template_text) > 100 else ''}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.info(f"Додано шаблон для keyword_id: {data['keyword_id']}")
     except Exception as e:
-        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"❌ <b>Помилка:</b> {e}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.error(f"Помилка додавання шаблону: {e}")
     
     await state.clear()
