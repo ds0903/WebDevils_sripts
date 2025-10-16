@@ -74,7 +74,7 @@ async def show_admin_panel(message: Message):
 2️⃣ 🔑 <b>Управління ключовими словами</b>
 3️⃣ 📊 <b>Статистика та історія</b>
 4️⃣ ⚙️ <b>Налаштування</b>
-5️⃣ 🚀 <b>ЗАПУСТИТИ БОТА</b>
+5️⃣ 🚀 <b>Керування БОТА</b>
 """
     await message.answer(text, reply_markup=main_menu_markup(), parse_mode='HTML')
 
@@ -95,7 +95,7 @@ async def back_to_main(callback: CallbackQuery):
 2️⃣ 🔑 <b>Управління ключовими словами</b>
 3️⃣ 📊 <b>Статистика та історія</b>
 4️⃣ ⚙️ <b>Налаштування</b>
-5️⃣ 🚀 <b>ЗАПУСТИТИ БОТА</b>
+5️⃣ 🚀 <b>Керування БОТА</b>
 """
     
     # Перевіряємо чи є документ у повідомленні

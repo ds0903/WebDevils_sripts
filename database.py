@@ -26,7 +26,6 @@ class Database:
                 user=os.getenv('DB_USER', 'danil'),
                 password=os.getenv('DB_PASSWORD', '')
             )
-            print("✅ З'єднання з PostgreSQL встановлено")
         except Exception as e:
             print(f"❌ Помилка підключення до PostgreSQL: {e}")
             raise
@@ -56,10 +55,17 @@ class Database:
                     password VARCHAR(255) NOT NULL,
                     max_comments_per_run INTEGER DEFAULT 5,
                     enabled BOOLEAN DEFAULT TRUE,
-                    headless BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            
+            # Видаляємо колонку headless якщо вона існує
+            try:
+                cursor.execute('''
+                    ALTER TABLE accounts DROP COLUMN IF EXISTS headless
+                ''')
+            except:
+                pass
             
             # Таблиця ключових слів
             cursor.execute('''
@@ -140,7 +146,6 @@ class Database:
                 ''', (key, value, desc))
             
             conn.commit()
-            print("✅ Таблиці створено/перевірено")
             
         except Exception as e:
             conn.rollback()
@@ -173,7 +178,7 @@ class Database:
             cursor.close()
             self.return_connection(conn)
     
-    def create_account(self, username, password, max_comments=5, enabled=True, headless=False):
+    def create_account(self, username, password, max_comments=5, enabled=True):
         """Створити новий акаунт"""
         conn = self.get_connection()
         try:
@@ -181,10 +186,10 @@ class Database:
             # Хешуємо пароль перед збереженням
             hashed_password = hash_password(password)
             cursor.execute('''
-                INSERT INTO accounts (username, password, max_comments_per_run, enabled, headless)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO accounts (username, password, max_comments_per_run, enabled)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id
-            ''', (username, hashed_password, max_comments, enabled, headless))
+            ''', (username, hashed_password, max_comments, enabled))
             account_id = cursor.fetchone()[0]
             conn.commit()
             return account_id
@@ -195,7 +200,7 @@ class Database:
             cursor.close()
             self.return_connection(conn)
     
-    def update_account(self, account_id, username=None, password=None, max_comments=None, enabled=None, headless=None):
+    def update_account(self, account_id, username=None, password=None, max_comments=None, enabled=None):
         """Оновити дані акаунта"""
         conn = self.get_connection()
         try:
@@ -217,9 +222,6 @@ class Database:
             if enabled is not None:
                 updates.append('enabled = %s')
                 params.append(enabled)
-            if headless is not None:
-                updates.append('headless = %s')
-                params.append(headless)
             
             if updates:
                 params.append(account_id)

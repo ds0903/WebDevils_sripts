@@ -6,7 +6,7 @@ def main_menu_markup():
         [InlineKeyboardButton(text="🔑 Управління ключовими словами", callback_data="menu_keywords")],
         [InlineKeyboardButton(text="📊 Статистика та історія", callback_data="menu_stats")],
         [InlineKeyboardButton(text="⚙️ Налаштування", callback_data="menu_settings")],
-        [InlineKeyboardButton(text="🚀 ЗАПУСТИТИ БОТА", callback_data="menu_run")],
+        [InlineKeyboardButton(text="🚀 Керування БОТА", callback_data="menu_run")],
         [InlineKeyboardButton(text="❓ Help", callback_data="menu_help")]
     ])
 
@@ -40,6 +40,7 @@ def run_menu_markup():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Один раз", callback_data="run_once"),
          InlineKeyboardButton(text="🔁 В циклі", callback_data="run_loop")],
+        [InlineKeyboardButton(text="🛑 Зупинити бота", callback_data="run_stop")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 

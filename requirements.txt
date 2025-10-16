@@ -6,3 +6,4 @@ pyTelegramBotAPI
 aiogram
 openpyxl
 bcrypt
+psutil

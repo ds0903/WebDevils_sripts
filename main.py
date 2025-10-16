@@ -9,6 +9,7 @@ import random
 from pathlib import Path
 import schedule
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import pickle
 import sys
 import re
@@ -20,16 +21,32 @@ from database import Database
 logs_dir = Path('logs')
 logs_dir.mkdir(exist_ok=True)
 
-# Налаштування логування - пишемо в файл і консоль
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/bot_script.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
+# Налаштування логування з ротацією за добу
+log_file = 'logs/bot_script.log'
+
+# Створюємо handler з ротацією кожен день (зберігаємо 1 день)
+file_handler = TimedRotatingFileHandler(
+    log_file,
+    when='midnight',
+    interval=1,
+    backupCount=1,  # Зберігаємо тільки за 1 добу
+    encoding='utf-8'
 )
-logger = logging.getLogger(__name__)
+file_handler.suffix = '%Y-%m-%d'
+
+# Консольний handler
+console_handler = logging.StreamHandler()
+
+# Форматування
+log_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(log_format)
+console_handler.setFormatter(log_format)
+
+# Налаштовуємо root logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 
 class ThreadsSeleniumBot:
@@ -596,7 +613,7 @@ class ThreadsSeleniumBot:
         logger.info(f"Акаунт: @{account['username']}")
         logger.info(f"=" * 50)
         
-        self.init_driver(headless=bool(account['headless']))
+        self.init_driver()
         
         try:
             if not self.login(account):

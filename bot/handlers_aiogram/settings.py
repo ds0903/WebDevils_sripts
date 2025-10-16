@@ -71,7 +71,7 @@ async def show_settings_menu(callback: CallbackQuery):
     text += "🔄 <b>Інтервал запуску:</b>\n"
     text += f"   {settings['run_interval_minutes']} хв\n\n"
     
-    text += "🔇 <b>Глобальний Headless режим:</b>\n"
+    text += "🔇 <b>Глобальний Headless режим (фоновий режим):</b>\n"
     text += f"   {headless_status}\n\n"
     
     text += "<i>Натисніть на налаштування щоб змінити</i>"
@@ -88,6 +88,12 @@ async def send_logs(callback: CallbackQuery):
         await callback.answer("❌ Доступ заборонено!", show_alert=True)
         return
     
+    # ВИДАЛЯЄМО попереднє повідомлення з меню налаштувань
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    
     try:
         # Отримуємо абсолютний шлях до кореневої папки проекту
         current_dir = Path(__file__).resolve().parent
@@ -97,7 +103,7 @@ async def send_logs(callback: CallbackQuery):
         logger.info(f"Шукаємо файл логів: {log_file}")
         
         if not log_file.exists():
-            await callback.answer(f"⚠️ Файл логів не знайдено за шляхом:\n{log_file}", show_alert=True)
+            await callback.message.answer(f"⚠️ Файл логів не знайдено за шляхом:\n{log_file}")
             logger.error(f"Файл логів не знайдено: {log_file}")
             return
         
@@ -105,15 +111,16 @@ async def send_logs(callback: CallbackQuery):
         file_size = log_file.stat().st_size
         
         if file_size == 0:
-            await callback.answer("⚠️ Файл логів порожній", show_alert=True)
+            await callback.message.answer("⚠️ Файл логів порожній")
             return
         
         logger.info(f"Розмір файлу логів: {file_size} байт")
         
+        # Імпортуємо кнопку "Назад"
+        from bot.keyboards_aiogram import back_button_markup
+        
         # Якщо файл дуже великий (>10MB), беремо тільки останні рядки
         if file_size > 10 * 1024 * 1024:
-            await callback.answer("📝 Файл занадто великий, відправляю останні 5000 рядків...", show_alert=False)
-            
             with open(log_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 last_lines = lines[-5000:]
@@ -130,7 +137,8 @@ async def send_logs(callback: CallbackQuery):
                 file,
                 caption="📝 <b>Логи бота (останні 5000 рядків)</b>\n\n"
                        f"Повний розмір файлу: {file_size / 1024 / 1024:.2f} MB",
-                parse_mode='HTML'
+                parse_mode='HTML',
+                reply_markup=back_button_markup()
             )
             
             # Видаляємо тимчасовий файл
@@ -139,20 +147,19 @@ async def send_logs(callback: CallbackQuery):
             except:
                 pass
         else:
-            await callback.answer("📝 Відправляю логи...", show_alert=False)
-            
             file = FSInputFile(str(log_file), filename='bot_script.log')
             await callback.message.answer_document(
                 file,
                 caption="📝 <b>Логи основного скрипта</b>\n\n"
-                       f"Розмір файлу: {file_size / 1024:.2f} KB\n",
-                parse_mode='HTML'
+                       f"Розмір файлу: {file_size / 1024:.2f} KB",
+                parse_mode='HTML',
+                reply_markup=back_button_markup()
             )
         
         logger.info("Відправлено файл логів")
         
     except Exception as e:
-        await callback.answer(f"❌ Помилка: {e}", show_alert=True)
+        await callback.message.answer(f"❌ Помилка: {e}")
         logger.error(f"Помилка відправки логів: {e}", exc_info=True)
 
 # ============= РЕДАГУВАННЯ ЗАТРИМОК МІЖ КОМЕНТАРЯМИ =============
