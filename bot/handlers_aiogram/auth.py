@@ -55,7 +55,6 @@ async def cmd_admin(message: Message, state: FSMContext):
     
     if pin == ADMIN_PIN:
         authorize_user(message.from_user.id, message.from_user.username)
-        await message.answer("✅ Авторизація успішна!")
         await state.clear()
         await show_admin_panel(message)
         logger.info(f"✅ Успішна авторизація користувача {message.from_user.id}")
@@ -98,7 +97,29 @@ async def back_to_main(callback: CallbackQuery):
 4️⃣ ⚙️ <b>Налаштування</b>
 5️⃣ 🚀 <b>ЗАПУСТИТИ БОТА</b>
 """
-    await callback.message.edit_text(text, reply_markup=main_menu_markup(), parse_mode='HTML')
+    
+    # Перевіряємо чи є документ у повідомленні
+    if callback.message.document or callback.message.photo or callback.message.video:
+        # Якщо це документ/фото/відео - видаляємо і відправляємо нове
+        chat_id = callback.message.chat.id
+        try:
+            await callback.message.delete()
+        except:
+            pass
+        await callback.bot.send_message(chat_id, text, reply_markup=main_menu_markup(), parse_mode='HTML')
+    else:
+        # Якщо це звичайне текстове повідомлення - редагуємо
+        try:
+            await callback.message.edit_text(text, reply_markup=main_menu_markup(), parse_mode='HTML')
+        except:
+            # Якщо не вдалося редагувати - відправляємо нове
+            chat_id = callback.message.chat.id
+            try:
+                await callback.message.delete()
+            except:
+                pass
+            await callback.bot.send_message(chat_id, text, reply_markup=main_menu_markup(), parse_mode='HTML')
+    
     await callback.answer()
 
 @router.callback_query(F.data == "menu_help")

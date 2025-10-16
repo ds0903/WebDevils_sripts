@@ -5,3 +5,4 @@ python-dotenv
 pyTelegramBotAPI
 aiogram
 openpyxl
+bcrypt

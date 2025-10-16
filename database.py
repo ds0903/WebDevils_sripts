@@ -4,6 +4,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from password_utils import hash_password
 
 load_dotenv()
 
@@ -177,11 +178,13 @@ class Database:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
+            # Хешуємо пароль перед збереженням
+            hashed_password = hash_password(password)
             cursor.execute('''
                 INSERT INTO accounts (username, password, max_comments_per_run, enabled, headless)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
-            ''', (username, password, max_comments, enabled, headless))
+            ''', (username, hashed_password, max_comments, enabled, headless))
             account_id = cursor.fetchone()[0]
             conn.commit()
             return account_id
@@ -205,8 +208,9 @@ class Database:
                 updates.append('username = %s')
                 params.append(username)
             if password is not None:
+                # Хешуємо пароль перед збереженням
                 updates.append('password = %s')
-                params.append(password)
+                params.append(hash_password(password))
             if max_comments is not None:
                 updates.append('max_comments_per_run = %s')
                 params.append(max_comments)

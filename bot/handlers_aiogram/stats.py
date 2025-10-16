@@ -57,6 +57,12 @@ async def view_history(callback: CallbackQuery):
     
     await callback.answer("📊 Генерую Excel файл...", show_alert=False)
     
+    # ВИДАЛЯЄМО попереднє повідомлення зі статистикою
+    try:
+        await callback.message.delete()
+    except:
+        pass
+    
     try:
         # Створюємо Excel файл
         wb = openpyxl.Workbook()
@@ -138,7 +144,8 @@ async def view_history(callback: CallbackQuery):
         filename = f"data/history_{limit}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         wb.save(filename)
         
-        # Відправляємо файл БЕЗ кнопки "Назад"
+        # Відправляємо файл з кнопкою "Назад"
+        from bot.keyboards_aiogram import back_button_markup
         file = FSInputFile(filename)
         await callback.message.answer_document(
             file,
@@ -147,7 +154,8 @@ async def view_history(callback: CallbackQuery):
                    f"✅ Успішних: {sum(1 for x in history if x['status'] == 'success')}\n"
                    f"⚠️ Невдалих: {sum(1 for x in history if x['status'] == 'failed')}\n"
                    f"❌ Помилок: {sum(1 for x in history if x['status'] == 'error')}",
-            parse_mode='HTML'
+            parse_mode='HTML',
+            reply_markup=back_button_markup()
         )
         
         # Видаляємо файл після відправки

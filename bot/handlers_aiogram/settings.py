@@ -145,8 +145,7 @@ async def send_logs(callback: CallbackQuery):
             await callback.message.answer_document(
                 file,
                 caption="📝 <b>Логи основного скрипта</b>\n\n"
-                       f"Розмір файлу: {file_size / 1024:.2f} KB\n"
-                       f"Шлях: <code>{log_file}</code>",
+                       f"Розмір файлу: {file_size / 1024:.2f} KB\n",
                 parse_mode='HTML'
             )
         
@@ -167,15 +166,15 @@ async def edit_comments_delay(callback: CallbackQuery, state: FSMContext):
     current_min = db.get_setting('delay_between_comments_min')
     current_max = db.get_setting('delay_between_comments_max')
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"⏱️ <b>Затримки між коментарями</b>\n\n"
         f"Поточні значення: {current_min}-{current_max} сек\n\n"
         f"Введіть нові значення через пробіл (мін макс):\n"
         f"Наприклад: 10 30",
         parse_mode='HTML',
-        reply_markup=cancel_markup()
+        reply_markup=cancel_markup("menu_settings")
     )
-    await state.update_data(setting_type='comments_delay')
+    await state.update_data(setting_type='comments_delay', last_bot_message_id=callback.message.message_id)
     await state.set_state(SettingsStates.edit_value)
     await callback.answer()
 
@@ -190,15 +189,15 @@ async def edit_posts_delay(callback: CallbackQuery, state: FSMContext):
     current_min = db.get_setting('delay_between_posts_min')
     current_max = db.get_setting('delay_between_posts_max')
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"⏱️ <b>Затримки між постами</b>\n\n"
         f"Поточні значення: {current_min}-{current_max} сек\n\n"
         f"Введіть нові значення через пробіл (мін макс):\n"
         f"Наприклад: 5 15",
         parse_mode='HTML',
-        reply_markup=cancel_markup()
+        reply_markup=cancel_markup("menu_settings")
     )
-    await state.update_data(setting_type='posts_delay')
+    await state.update_data(setting_type='posts_delay', last_bot_message_id=callback.message.message_id)
     await state.set_state(SettingsStates.edit_value)
     await callback.answer()
 
@@ -213,15 +212,15 @@ async def edit_accounts_delay(callback: CallbackQuery, state: FSMContext):
     current_min = db.get_setting('delay_between_accounts_min')
     current_max = db.get_setting('delay_between_accounts_max')
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"⏱️ <b>Затримки між акаунтами</b>\n\n"
         f"Поточні значення: {current_min}-{current_max} сек\n\n"
         f"Введіть нові значення через пробіл (мін макс):\n"
         f"Наприклад: 60 120",
         parse_mode='HTML',
-        reply_markup=cancel_markup()
+        reply_markup=cancel_markup("menu_settings")
     )
-    await state.update_data(setting_type='accounts_delay')
+    await state.update_data(setting_type='accounts_delay', last_bot_message_id=callback.message.message_id)
     await state.set_state(SettingsStates.edit_value)
     await callback.answer()
 
@@ -235,14 +234,14 @@ async def edit_max_age(callback: CallbackQuery, state: FSMContext):
     
     current_value = db.get_setting('max_post_age_hours')
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"📅 <b>Макс. вік поста</b>\n\n"
         f"Поточне значення: {current_value} год\n\n"
         f"Введіть нове значення (0 = без обмежень):",
         parse_mode='HTML',
-        reply_markup=cancel_markup()
+        reply_markup=cancel_markup("menu_settings")
     )
-    await state.update_data(setting_type='max_age')
+    await state.update_data(setting_type='max_age', last_bot_message_id=callback.message.message_id)
     await state.set_state(SettingsStates.edit_value)
     await callback.answer()
 
@@ -256,14 +255,14 @@ async def edit_run_interval(callback: CallbackQuery, state: FSMContext):
     
     current_value = db.get_setting('run_interval_minutes')
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"🔄 <b>Інтервал запуску</b>\n\n"
         f"Поточне значення: {current_value} хв\n\n"
         f"Введіть нове значення в хвилинах:",
         parse_mode='HTML',
-        reply_markup=cancel_markup()
+        reply_markup=cancel_markup("menu_settings")
     )
-    await state.update_data(setting_type='run_interval')
+    await state.update_data(setting_type='run_interval', last_bot_message_id=callback.message.message_id)
     await state.set_state(SettingsStates.edit_value)
     await callback.answer()
 
@@ -292,68 +291,143 @@ async def toggle_headless(callback: CallbackQuery):
 
 @router.message(SettingsStates.edit_value)
 async def process_setting_value(message: Message, state: FSMContext):
-    if message.text == "❌ Скасувати":
-        await state.clear()
-        await message.answer("❌ Скасовано", reply_markup=ReplyKeyboardRemove())
-        return
-    
     data = await state.get_data()
     setting_type = data['setting_type']
+    
+    # Видаляємо повідомлення користувача
+    try:
+        await message.delete()
+    except:
+        pass
+    
+    # Приготуємо кнопку "Назад"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="◀️ Назад до налаштувань", callback_data="menu_settings")]
+    ])
     
     try:
         if setting_type in ['comments_delay', 'posts_delay', 'accounts_delay']:
             # Парсимо два значення
             values = message.text.strip().split()
             if len(values) != 2:
-                await message.answer("❌ Введіть два значення через пробіл (мін макс)")
+                await message.bot.edit_message_text(
+                    "❌ <b>Помилка!</b>\n\nВведіть два значення через пробіл (мін макс)",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
+                await state.clear()
                 return
             
             min_val = int(values[0])
             max_val = int(values[1])
             
             if min_val >= max_val:
-                await message.answer("❌ Мінімум має бути менше максимуму")
+                await message.bot.edit_message_text(
+                    "❌ <b>Помилка!</b>\n\nМінімум має бути менше максимуму",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
+                await state.clear()
                 return
             
             # Визначаємо ключі налаштувань
             if setting_type == 'comments_delay':
                 db.update_setting('delay_between_comments_min', str(min_val))
                 db.update_setting('delay_between_comments_max', str(max_val))
-                await message.answer(f"✅ Затримки між коментарями: {min_val}-{max_val} сек", reply_markup=ReplyKeyboardRemove())
+                await message.bot.edit_message_text(
+                    f"✅ <b>Затримки між коментарями змінено!</b>\n\nНові значення: {min_val}-{max_val} сек",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
             elif setting_type == 'posts_delay':
                 db.update_setting('delay_between_posts_min', str(min_val))
                 db.update_setting('delay_between_posts_max', str(max_val))
-                await message.answer(f"✅ Затримки між постами: {min_val}-{max_val} сек", reply_markup=ReplyKeyboardRemove())
+                await message.bot.edit_message_text(
+                    f"✅ <b>Затримки між постами змінено!</b>\n\nНові значення: {min_val}-{max_val} сек",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
             elif setting_type == 'accounts_delay':
                 db.update_setting('delay_between_accounts_min', str(min_val))
                 db.update_setting('delay_between_accounts_max', str(max_val))
-                await message.answer(f"✅ Затримки між акаунтами: {min_val}-{max_val} сек", reply_markup=ReplyKeyboardRemove())
+                await message.bot.edit_message_text(
+                    f"✅ <b>Затримки між акаунтами змінено!</b>\n\nНові значення: {min_val}-{max_val} сек",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
             
         elif setting_type == 'max_age':
             value = int(message.text.strip())
             if value < 0:
-                await message.answer("❌ Значення має бути >= 0")
+                await message.bot.edit_message_text(
+                    "❌ <b>Помилка!</b>\n\nЗначення має бути >= 0",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
+                await state.clear()
                 return
             
             db.update_setting('max_post_age_hours', str(value))
-            await message.answer(f"✅ Макс. вік поста: {value} год", reply_markup=ReplyKeyboardRemove())
+            await message.bot.edit_message_text(
+                f"✅ <b>Макс. вік поста змінено!</b>\n\nНове значення: {value} год",
+                chat_id=message.chat.id,
+                message_id=data.get('last_bot_message_id'),
+                parse_mode='HTML',
+                reply_markup=keyboard
+            )
             
         elif setting_type == 'run_interval':
             value = int(message.text.strip())
             if value <= 0:
-                await message.answer("❌ Значення має бути > 0")
+                await message.bot.edit_message_text(
+                    "❌ <b>Помилка!</b>\n\nЗначення має бути > 0",
+                    chat_id=message.chat.id,
+                    message_id=data.get('last_bot_message_id'),
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
+                await state.clear()
                 return
             
             db.update_setting('run_interval_minutes', str(value))
-            await message.answer(f"✅ Інтервал запуску: {value} хв", reply_markup=ReplyKeyboardRemove())
+            await message.bot.edit_message_text(
+                f"✅ <b>Інтервал запуску змінено!</b>\n\nНове значення: {value} хв",
+                chat_id=message.chat.id,
+                message_id=data.get('last_bot_message_id'),
+                parse_mode='HTML',
+                reply_markup=keyboard
+            )
         
         logger.info(f"Оновлено налаштування {setting_type}")
         
     except ValueError:
-        await message.answer("❌ Введіть коректні числові значення")
-        return
+        await message.bot.edit_message_text(
+            "❌ <b>Помилка!</b>\n\nВведіть коректні числові значення",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
     except Exception as e:
-        await message.answer(f"❌ Помилка: {e}", reply_markup=ReplyKeyboardRemove())
+        await message.bot.edit_message_text(
+            f"❌ <b>Помилка:</b> {e}",
+            chat_id=message.chat.id,
+            message_id=data.get('last_bot_message_id'),
+            parse_mode='HTML',
+            reply_markup=keyboard
+        )
         logger.error(f"Помилка оновлення налаштувань: {e}")
     
     await state.clear()

@@ -48,16 +48,20 @@ def back_button_markup():
         [InlineKeyboardButton(text="◀️ Назад", callback_data="back_main")]
     ])
 
-def cancel_markup():
-    return ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="❌ Скасувати")]], resize_keyboard=True)
+def cancel_markup(callback_data="back_main"):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Скасувати", callback_data=callback_data)]
+    ])
 
-def yes_no_markup():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="Так"), KeyboardButton(text="Ні")],
-        [KeyboardButton(text="❌ Скасувати")]
-    ], resize_keyboard=True)
+def yes_no_markup(yes_callback, no_callback="back_main"):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Так", callback_data=yes_callback),
+         InlineKeyboardButton(text="Ні", callback_data=no_callback)],
+        [InlineKeyboardButton(text="❌ Скасувати", callback_data="back_main")]
+    ])
 
-def confirm_delete_markup():
-    return ReplyKeyboardMarkup(keyboard=[
-        [KeyboardButton(text="✅ Так, видалити"), KeyboardButton(text="❌ Скасувати")]
-    ], resize_keyboard=True)
+def confirm_delete_markup(confirm_callback):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Так, видалити", callback_data=confirm_callback),
+         InlineKeyboardButton(text="❌ Скасувати", callback_data="back_main")]
+    ])
