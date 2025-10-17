@@ -4,7 +4,6 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.service import Service
 import time
 import random
 from pathlib import Path
@@ -18,13 +17,6 @@ from datetime import datetime, timedelta, timezone
 import tempfile
 import shutil
 import subprocess
-
-try:
-    from pyvirtualdisplay import Display
-    DISPLAY_AVAILABLE = True
-except ImportError:
-    DISPLAY_AVAILABLE = False
-    print("⚠️ pyvirtualdisplay не встановлено. Запусти: pip install pyvirtualdisplay xvfbwrapper")
 
 from database import Database
 
@@ -68,16 +60,6 @@ class ThreadsSeleniumBot:
         self.driver = None
         self.temp_profile_dir = None
         self.display = None
-        
-        # Створюємо віртуальний display для SSH
-        if DISPLAY_AVAILABLE:
-            try:
-                self.display = Display(visible=0, size=(1920, 1080))
-                self.display.start()
-                logger.info("✅ Віртуальний display запущено")
-            except Exception as e:
-                logger.warning(f"⚠️ Не вдалося запустити display: {e}")
-                self.display = None
     
     def has_cyrillic(self, text):
         """Перевіряє чи містить текст кирилицю (українські/російські букви)"""

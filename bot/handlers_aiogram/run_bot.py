@@ -77,7 +77,6 @@ async def run_bot_once(callback: CallbackQuery):
         
         await callback.message.answer(
             f"✅ <b>Бот запущено один раз!</b>\n\n"
-            f"🐍 Режим: Python скрипт\n\n"
             f"⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
             parse_mode='HTML',
             reply_markup=back_button_markup()
@@ -114,7 +113,6 @@ async def run_bot_loop(callback: CallbackQuery):
         
         await callback.message.answer(
             f"✅ <b>Бот запущено в циклі!</b>\n\n"
-            f"🐍 Режим: Python скрипт\n\n"
             f"⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
             parse_mode='HTML',
             reply_markup=back_button_markup()
@@ -167,9 +165,6 @@ async def stop_bot(callback: CallbackQuery):
                             # КРИТИЧНО: Перевіряємо чи процес з НАШОЇ папки
                             if proc_cwd == project_dir or proc_cwd.startswith(project_dir):
                                 found_processes.append(proc.info['pid'])
-                                logger.info(f"✅ Це наш процес! PID: {proc.info['pid']}")
-                            else:
-                                logger.info(f"⚠️ Це НЕ наш процес (інша папка), пропускаємо PID: {proc.info['pid']}")
                         except (psutil.AccessDenied, psutil.NoSuchProcess):
                             # Якщо не можемо отримати cwd - краще пропустити
                             logger.warning(f"Не можу перевірити cwd для процесу {proc.info['pid']}, пропускаємо")
