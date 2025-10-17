@@ -4,6 +4,8 @@ psycopg2-binary
 python-dotenv
 pyTelegramBotAPI
 aiogram
+psutil
+aiogram
 openpyxl
 bcrypt
 psutil

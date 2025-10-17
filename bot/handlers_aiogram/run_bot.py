@@ -69,40 +69,15 @@ async def run_bot_once(callback: CallbackQuery):
         pass
     
     try:
-        # Спочатку шукаємо зібраний файл
-        built_bot = os.path.join(BASE_DIR, 'dist', 'threads_bot')
-        built_bot_exe = os.path.join(BASE_DIR, 'dist', 'threads_bot.exe')
-        
-        if os.path.exists(built_bot):
-            # Linux/Mac - зібраний файл
-            subprocess.Popen(
-                [built_bot, '--once'],
-                cwd=BASE_DIR
-            )
-            logger.info("✅ Запущено зібраний файл: dist/threads_bot")
-            bot_type = "📦 Зібраний файл"
-        elif os.path.exists(built_bot_exe):
-            # Windows - зібраний .exe
-            subprocess.Popen(
-                [built_bot_exe, '--once'],
-                cwd=BASE_DIR,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            logger.info("✅ Запущено зібраний файл: dist/threads_bot.exe")
-            bot_type = "📦 Зібраний .exe"
-        else:
-            # Зібраного немає - запускаємо Python скрипт
-            subprocess.Popen(
-                ['python3' if os.name != 'nt' else 'python', 'main.py', '--once'],
-                cwd=BASE_DIR,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            )
-            logger.info("✅ Запущено Python скрипт: main.py")
-            bot_type = "🐍 Python скрипт"
+        # Запускаємо Python скрипт напряму
+        subprocess.Popen(
+            ['python3', 'main.py', '--once'],
+            cwd=BASE_DIR
+        )
         
         await callback.message.answer(
             f"✅ <b>Бот запущено один раз!</b>\n\n"
-            f"🕹 Режим: {bot_type}\n\n"
+            f"🐍 Режим: Python скрипт\n\n"
             f"⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
             parse_mode='HTML',
             reply_markup=back_button_markup()
@@ -131,40 +106,15 @@ async def run_bot_loop(callback: CallbackQuery):
         pass
     
     try:
-        # Спочатку шукаємо зібраний файл
-        built_bot = os.path.join(BASE_DIR, 'dist', 'threads_bot')
-        built_bot_exe = os.path.join(BASE_DIR, 'dist', 'threads_bot.exe')
-        
-        if os.path.exists(built_bot):
-            # Linux/Mac - зібраний файл
-            subprocess.Popen(
-                [built_bot],
-                cwd=BASE_DIR
-            )
-            logger.info("✅ Запущено зібраний файл в циклі: dist/threads_bot")
-            bot_type = "📦 Зібраний файл"
-        elif os.path.exists(built_bot_exe):
-            # Windows - зібраний .exe
-            subprocess.Popen(
-                [built_bot_exe],
-                cwd=BASE_DIR,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
-            logger.info("✅ Запущено зібраний файл в циклі: dist/threads_bot.exe")
-            bot_type = "📦 Зібраний .exe"
-        else:
-            # Зібраного немає - запускаємо Python скрипт
-            subprocess.Popen(
-                ['python3' if os.name != 'nt' else 'python', 'main.py'],
-                cwd=BASE_DIR,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            )
-            logger.info("✅ Запущено Python скрипт в циклі: main.py")
-            bot_type = "🐍 Python скрипт"
+        # Запускаємо Python скрипт напряму
+        subprocess.Popen(
+            ['python3', 'main.py'],
+            cwd=BASE_DIR
+        )
         
         await callback.message.answer(
             f"✅ <b>Бот запущено в циклі!</b>\n\n"
-            f"🕹 Режим: {bot_type}\n\n"
+            f"🐍 Режим: Python скрипт\n\n"
             f"⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
             parse_mode='HTML',
             reply_markup=back_button_markup()
@@ -200,7 +150,7 @@ async def stop_bot(callback: CallbackQuery):
         
         # Отримуємо абсолютний шлях до папки проекту
         project_dir = os.path.abspath(BASE_DIR)
-        logger.info(f"Шукаємо процеси main.py в директорії: {project_dir}")
+        logger.info(f"Шукаємо процеси python main.py в директорії: {project_dir}")
         
         # Шукаємо всі процеси python що запускають main.py
         for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cwd']):
@@ -208,24 +158,22 @@ async def stop_bot(callback: CallbackQuery):
                 # Перевіряємо чи це python процес
                 if proc.info['name'] and 'python' in proc.info['name'].lower():
                     cmdline = proc.info['cmdline']
-                    if cmdline:
-                        cmdline_str = ' '.join(str(arg) for arg in cmdline)
-                        if 'main.py' in cmdline_str:
-                            # Знайшли процес main.py - перевіряємо робочу директорію
-                            try:
-                                proc_cwd = proc.cwd()
-                                logger.info(f"Знайдено процес main.py PID {proc.info['pid']}, cwd: {proc_cwd}")
-                                
-                                # КРИТИЧНО: Перевіряємо чи процес з НАШОЇ папки
-                                if proc_cwd == project_dir or proc_cwd.startswith(project_dir):
-                                    found_processes.append(proc.info['pid'])
-                                    logger.info(f"✅ Це наш процес! PID: {proc.info['pid']}")
-                                else:
-                                    logger.info(f"⚠️ Це НЕ наш процес (інша папка), пропускаємо PID: {proc.info['pid']}")
-                            except (psutil.AccessDenied, psutil.NoSuchProcess):
-                                # Якщо не можемо отримати cwd - краще пропустити
-                                logger.warning(f"Не можу перевірити cwd для процесу {proc.info['pid']}, пропускаємо")
-                                continue
+                    if cmdline and any('main.py' in str(arg) for arg in cmdline):
+                        # Знайшли процес main.py - перевіряємо робочу директорію
+                        try:
+                            proc_cwd = proc.cwd()
+                            logger.info(f"Знайдено процес python main.py PID {proc.info['pid']}, cwd: {proc_cwd}")
+                            
+                            # КРИТИЧНО: Перевіряємо чи процес з НАШОЇ папки
+                            if proc_cwd == project_dir or proc_cwd.startswith(project_dir):
+                                found_processes.append(proc.info['pid'])
+                                logger.info(f"✅ Це наш процес! PID: {proc.info['pid']}")
+                            else:
+                                logger.info(f"⚠️ Це НЕ наш процес (інша папка), пропускаємо PID: {proc.info['pid']}")
+                        except (psutil.AccessDenied, psutil.NoSuchProcess):
+                            # Якщо не можемо отримати cwd - краще пропустити
+                            logger.warning(f"Не можу перевірити cwd для процесу {proc.info['pid']}, пропускаємо")
+                            continue
             except (psutil.NoSuchProcess, psutil.AccessDenied, KeyError):
                 continue
         
@@ -258,11 +206,11 @@ async def stop_bot(callback: CallbackQuery):
         else:
             await callback.message.answer(
                 "⚠️ <b>Бот не запущений</b>\n\n"
-                f"Процеси main.py не знайдено в директорії:\n<code>{project_dir}</code>",
+                f"Процеси python main.py не знайдено в директорії:\n<code>{project_dir}</code>",
                 parse_mode='HTML',
                 reply_markup=back_button_markup()
             )
-            logger.info("⚠️ Процеси main.py не знайдено")
+            logger.info("⚠️ Процеси python main.py не знайдено")
         
     except Exception as e:
         logger.error(f"Помилка зупинки бота: {e}")
