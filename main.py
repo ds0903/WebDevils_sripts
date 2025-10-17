@@ -3,7 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options
 import time
 import random
 from pathlib import Path
@@ -14,6 +14,9 @@ import pickle
 import sys
 import re
 from datetime import datetime, timedelta, timezone
+import tempfile
+import shutil
+import subprocess
 
 from database import Database
 
@@ -55,6 +58,8 @@ class ThreadsSeleniumBot:
         self.sessions_dir = Path('data/sessions')
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.driver = None
+        self.temp_profile_dir = None
+        self.display = None
     
     def has_cyrillic(self, text):
         """Перевіряє чи містить текст кирилицю (українські/російські букви)"""
@@ -69,25 +74,85 @@ class ThreadsSeleniumBot:
         return random.uniform(min_val, max_val)
     
     def init_driver(self, headless=False):
+        # ВБИВАЄМО ВСІ СТАРІ ПРОЦЕСИ Firefox
+        try:
+            subprocess.run(['pkill', '-9', 'firefox'], capture_output=True)
+            subprocess.run(['pkill', '-9', 'geckodriver'], capture_output=True)
+            logger.info("✅ Старі процеси Firefox вбито")
+            time.sleep(1)
+        except:
+            pass
+        
+        # Очищаємо старі тимчасові профілі
+        try:
+            import glob
+            for profile in glob.glob('/tmp/firefox_profile_*'):
+                try:
+                    shutil.rmtree(profile)
+                except:
+                    pass
+            logger.info("✅ Старі профілі Firefox видалено")
+        except:
+            pass
+        
         # Перевіряємо глобальне налаштування headless
         global_headless = self.db.get_setting('global_headless_mode') or 'false'
         if global_headless == 'true':
             headless = True
-            
+        
+        # Створюємо УНІКАЛЬНУ тимчасову директорію
+        import uuid
+        unique_id = f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        self.temp_profile_dir = tempfile.mkdtemp(prefix=f'firefox_profile_{unique_id}_')
+        
         options = Options()
+        
+        # Headless режим для серверу
         if headless:
             options.add_argument('--headless')
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--lang=en-US')
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
+            logger.info("🔵 Headless режим увімкнено")
         
-        self.driver = webdriver.Chrome(options=options)
+        # Налаштування Firefox
+        options.add_argument('--width=1920')
+        options.add_argument('--height=1080')
+        options.set_preference('intl.accept_languages', 'en-US, en')
+        options.set_preference('dom.webdriver.enabled', False)
+        options.set_preference('useAutomationExtension', False)
+        
+        # Використовуємо тимчасовий профіль
+        options.add_argument('-profile')
+        options.add_argument(self.temp_profile_dir)
+        
+        logger.info(f"🚀 Запуск Firefox з профілем: {self.temp_profile_dir}")
+        
+        # Шукаємо Firefox
+        firefox_paths = [
+            '/usr/local/bin/firefox',  # Пріоритет 1
+            '/usr/bin/firefox',         # Пріоритет 2
+            '/snap/bin/firefox',        # Snap wrapper (не працює)
+            '/snap/firefox/current/usr/lib/firefox/firefox',
+            '/usr/lib/firefox/firefox'
+        ]
+        
+        firefox_found = None
+        for path in firefox_paths:
+            if Path(path).exists():
+                firefox_found = path
+                logger.info(f"✅ Знайдено Firefox: {path}")
+                break
+        
+        if firefox_found:
+            options.binary_location = firefox_found
+        
+        try:
+            self.driver = webdriver.Firefox(options=options)
+        except Exception as e:
+            logger.error(f"❌ Помилка запуску Firefox: {e}")
+            logger.error("💡 Спробуй встановити: sudo apt remove firefox && sudo apt install firefox")
+            raise
+        
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        logger.info("✅ Firefox запущено успішно")
     
     def save_session(self, account_id):
         session_file = self.sessions_dir / f"{account_id}_session.pkl"
@@ -694,6 +759,24 @@ class ThreadsSeleniumBot:
             if self.driver:
                 self.driver.quit()
                 self.driver = None
+            
+            # Видаляємо тимчасову директорію профілю
+            if self.temp_profile_dir and Path(self.temp_profile_dir).exists():
+                try:
+                    shutil.rmtree(self.temp_profile_dir)
+                    logger.info(f"Видалено тимчасовий профіль: {self.temp_profile_dir}")
+                except Exception as e:
+                    logger.warning(f"Не вдалося видалити профіль: {e}")
+                self.temp_profile_dir = None
+    
+    def __del__(self):
+        """Закриваємо віртуальний display при знищенні об'єкта"""
+        if self.display:
+            try:
+                self.display.stop()
+                logger.info("✅ Віртуальний display зупинено")
+            except:
+                pass
     
     def run(self):
         logger.info("=" * 70)
