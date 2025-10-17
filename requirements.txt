@@ -1,2 +1,9 @@
 selenium
 schedule
+psycopg2-binary
+python-dotenv
+pyTelegramBotAPI
+aiogram
+openpyxl
+bcrypt
+psutil
