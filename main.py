@@ -19,6 +19,13 @@ import tempfile
 import shutil
 import subprocess
 
+try:
+    from pyvirtualdisplay import Display
+    DISPLAY_AVAILABLE = True
+except ImportError:
+    DISPLAY_AVAILABLE = False
+    print("⚠️ pyvirtualdisplay не встановлено. Запусти: pip install pyvirtualdisplay xvfbwrapper")
+
 from database import Database
 
 # Створюємо папку для логів
@@ -60,6 +67,17 @@ class ThreadsSeleniumBot:
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
         self.driver = None
         self.temp_profile_dir = None
+        self.display = None
+        
+        # Створюємо віртуальний display для SSH
+        if DISPLAY_AVAILABLE:
+            try:
+                self.display = Display(visible=0, size=(1920, 1080))
+                self.display.start()
+                logger.info("✅ Віртуальний display запущено")
+            except Exception as e:
+                logger.warning(f"⚠️ Не вдалося запустити display: {e}")
+                self.display = None
     
     def has_cyrillic(self, text):
         """Перевіряє чи містить текст кирилицю (українські/російські букви)"""
@@ -125,13 +143,31 @@ class ThreadsSeleniumBot:
         
         logger.info(f"🚀 Запуск Firefox з профілем: {self.temp_profile_dir}")
         
+        # Шукаємо Firefox
+        firefox_paths = [
+            '/usr/local/bin/firefox',  # Пріоритет 1
+            '/usr/bin/firefox',         # Пріоритет 2
+            '/snap/bin/firefox',        # Snap wrapper (не працює)
+            '/snap/firefox/current/usr/lib/firefox/firefox',
+            '/usr/lib/firefox/firefox'
+        ]
+        
+        firefox_found = None
+        for path in firefox_paths:
+            if Path(path).exists():
+                firefox_found = path
+                logger.info(f"✅ Знайдено Firefox: {path}")
+                break
+        
+        if firefox_found:
+            options.binary_location = firefox_found
+        
         try:
             self.driver = webdriver.Firefox(options=options)
         except Exception as e:
-            logger.error(f"Помилка запуску Firefox: {e}")
-            # Спробуємо вказати шлях до Firefox
-            options.binary_location = '/usr/bin/firefox'
-            self.driver = webdriver.Firefox(options=options)
+            logger.error(f"❌ Помилка запуску Firefox: {e}")
+            logger.error("💡 Спробуй встановити: sudo apt remove firefox && sudo apt install firefox")
+            raise
         
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         logger.info("✅ Firefox запущено успішно")
@@ -750,6 +786,15 @@ class ThreadsSeleniumBot:
                 except Exception as e:
                     logger.warning(f"Не вдалося видалити профіль: {e}")
                 self.temp_profile_dir = None
+    
+    def __del__(self):
+        """Закриваємо віртуальний display при знищенні об'єкта"""
+        if self.display:
+            try:
+                self.display.stop()
+                logger.info("✅ Віртуальний display зупинено")
+            except:
+                pass
     
     def run(self):
         logger.info("=" * 70)
