@@ -73,6 +73,12 @@ class ThreadsSeleniumBot:
         global_headless = self.db.get_setting('global_headless_mode') or 'false'
         if global_headless == 'true':
             headless = True
+        
+        # Використовуємо унікальну директорію для кожного запуску
+        import tempfile
+        import uuid
+        unique_id = f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
+        temp_dir = tempfile.mkdtemp(prefix=f'chrome_temp_{unique_id}_')
             
         options = Options()
         if headless:
@@ -83,8 +89,12 @@ class ThreadsSeleniumBot:
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
         options.add_argument('--lang=en-US')
+        # Використовуємо УНІКАЛЬНУ директорію
+        options.add_argument(f'--user-data-dir={temp_dir}')
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
+        
+        logger.info(f"📂 Створено тимчасову директорію: {temp_dir}")
         
         self.driver = webdriver.Chrome(options=options)
         self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
