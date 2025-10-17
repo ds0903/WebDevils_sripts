@@ -69,14 +69,41 @@ async def run_bot_once(callback: CallbackQuery):
         pass
     
     try:
-        subprocess.Popen(
-            ['python', 'main.py', '--once'],
-            cwd=BASE_DIR,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-        )
+        # Спочатку шукаємо зібраний файл
+        built_bot = os.path.join(BASE_DIR, 'dist', 'threads_bot')
+        built_bot_exe = os.path.join(BASE_DIR, 'dist', 'threads_bot.exe')
+        
+        if os.path.exists(built_bot):
+            # Linux/Mac - зібраний файл
+            subprocess.Popen(
+                [built_bot, '--once'],
+                cwd=BASE_DIR
+            )
+            logger.info("✅ Запущено зібраний файл: dist/threads_bot")
+            bot_type = "📦 Зібраний файл"
+        elif os.path.exists(built_bot_exe):
+            # Windows - зібраний .exe
+            subprocess.Popen(
+                [built_bot_exe, '--once'],
+                cwd=BASE_DIR,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            logger.info("✅ Запущено зібраний файл: dist/threads_bot.exe")
+            bot_type = "📦 Зібраний .exe"
+        else:
+            # Зібраного немає - запускаємо Python скрипт
+            subprocess.Popen(
+                ['python3' if os.name != 'nt' else 'python', 'main.py', '--once'],
+                cwd=BASE_DIR,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            logger.info("✅ Запущено Python скрипт: main.py")
+            bot_type = "🐍 Python скрипт"
+        
         await callback.message.answer(
-            "✅ <b>Бот запущено один раз!</b>\n\n"
-            "⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
+            f"✅ <b>Бот запущено один раз!</b>\n\n"
+            f"🕹 Режим: {bot_type}\n\n"
+            f"⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
             parse_mode='HTML',
             reply_markup=back_button_markup()
         )
@@ -104,14 +131,41 @@ async def run_bot_loop(callback: CallbackQuery):
         pass
     
     try:
-        subprocess.Popen(
-            ['python', 'main.py'],
-            cwd=BASE_DIR,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-        )
+        # Спочатку шукаємо зібраний файл
+        built_bot = os.path.join(BASE_DIR, 'dist', 'threads_bot')
+        built_bot_exe = os.path.join(BASE_DIR, 'dist', 'threads_bot.exe')
+        
+        if os.path.exists(built_bot):
+            # Linux/Mac - зібраний файл
+            subprocess.Popen(
+                [built_bot],
+                cwd=BASE_DIR
+            )
+            logger.info("✅ Запущено зібраний файл в циклі: dist/threads_bot")
+            bot_type = "📦 Зібраний файл"
+        elif os.path.exists(built_bot_exe):
+            # Windows - зібраний .exe
+            subprocess.Popen(
+                [built_bot_exe],
+                cwd=BASE_DIR,
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            logger.info("✅ Запущено зібраний файл в циклі: dist/threads_bot.exe")
+            bot_type = "📦 Зібраний .exe"
+        else:
+            # Зібраного немає - запускаємо Python скрипт
+            subprocess.Popen(
+                ['python3' if os.name != 'nt' else 'python', 'main.py'],
+                cwd=BASE_DIR,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            logger.info("✅ Запущено Python скрипт в циклі: main.py")
+            bot_type = "🐍 Python скрипт"
+        
         await callback.message.answer(
-            "✅ <b>Бот запущено в циклі!</b>\n\n"
-            "⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
+            f"✅ <b>Бот запущено в циклі!</b>\n\n"
+            f"🕹 Режим: {bot_type}\n\n"
+            f"⚠️ Для зупинки використовуйте кнопку <b>🛑 Зупинити бота</b>",
             parse_mode='HTML',
             reply_markup=back_button_markup()
         )
