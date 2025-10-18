@@ -71,7 +71,7 @@ async def run_bot_once(callback: CallbackQuery):
     try:
         # Запускаємо Python скрипт напряму
         subprocess.Popen(
-            ['python3', 'main.py', '--once'],
+            ['main.py', '--once'],
             cwd=BASE_DIR
         )
         
@@ -107,7 +107,7 @@ async def run_bot_loop(callback: CallbackQuery):
     try:
         # Запускаємо Python скрипт напряму
         subprocess.Popen(
-            ['python3', 'main.py'],
+            ['main.py'],
             cwd=BASE_DIR
         )
         
